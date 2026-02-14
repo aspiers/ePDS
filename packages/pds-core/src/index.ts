@@ -261,6 +261,18 @@ async function main() {
   // Health check
   // =========================================================================
 
+  // Internal endpoint for auth service to check if an email has an existing account
+  pds.app.get('/xrpc/_magic/check-email', (req, res) => {
+    const email = (req.query.email as string || '').trim().toLowerCase()
+    if (!email) {
+      res.status(400).json({ error: 'email required' })
+      return
+    }
+    let did = magicDb.getDidByEmail(email)
+    if (!did) did = magicDb.getDidByBackupEmail(email)
+    res.json({ exists: !!did })
+  })
+
   pds.app.get('/health', (_req, res) => {
     res.json({ status: 'ok', service: 'magic-pds' })
   })
