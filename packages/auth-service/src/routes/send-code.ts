@@ -54,6 +54,7 @@ export function createSendCodeRouter(ctx: AuthServiceContext): Router {
         to: email,
         code,
         clientAppName: clientName,
+        clientId: clientId || undefined,
         pdsName: ctx.config.hostname,
         pdsDomain: ctx.config.pdsHostname,
         isNewUser,

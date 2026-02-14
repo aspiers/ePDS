@@ -4,12 +4,14 @@
  * Caches results for 10 minutes to avoid repeated fetches.
  */
 
-interface ClientMetadata {
+export interface ClientMetadata {
   client_name?: string
   client_uri?: string
   logo_uri?: string
   tos_uri?: string
   policy_uri?: string
+  email_template_uri?: string
+  email_subject_template?: string
 }
 
 interface CacheEntry {
