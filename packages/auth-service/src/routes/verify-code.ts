@@ -34,27 +34,20 @@ export function createVerifyCodeRouter(ctx: AuthServiceContext): Router {
       return
     }
 
-    // Check if account exists
-    // Account creation is handled by the PDS magic callback
+    // Check if account exists (for the magic callback)
     let did = ctx.db.getDidByEmail(result.email)
     if (!did) did = ctx.db.getDidByBackupEmail(result.email)
-
     const isNewAccount = !did
 
-    if (isNewAccount) {
-      // New account: show consent screen
-      const consentUrl = `/auth/consent?request_uri=${encodeURIComponent(result.authRequestId)}&email=${encodeURIComponent(result.email)}&new=1${result.clientId ? '&client_id=' + encodeURIComponent(result.clientId) : ''}`
-      res.redirect(303, consentUrl)
-    } else {
-      // Existing account: skip consent, go straight to magic callback
-      const params = new URLSearchParams({
-        request_uri: result.authRequestId,
-        email: result.email,
-        approved: '1',
-        new_account: '0',
-      })
-      res.redirect(303, `${ctx.config.pdsPublicUrl}/oauth/magic-callback?${params.toString()}`)
-    }
+    // Skip consent — OTP verification is sufficient confirmation.
+    // Account creation (if new) is handled by the PDS magic callback.
+    const params = new URLSearchParams({
+      request_uri: result.authRequestId,
+      email: result.email,
+      approved: '1',
+      new_account: isNewAccount ? '1' : '0',
+    })
+    res.redirect(303, `${ctx.config.pdsPublicUrl}/oauth/magic-callback?${params.toString()}`)
   })
 
   return router
