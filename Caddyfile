@@ -2,29 +2,36 @@
     email admin@{$PDS_HOSTNAME:pds.example}
 }
 
-# PDS API (no wildcard - handles use DNS verification)
-{$PDS_HOSTNAME:pds.example} {
-    reverse_proxy {$PDS_UPSTREAM:pds:3000} {
-        # WebSocket support for AT Protocol event streams
-        header_up Connection {http.request.header.Connection}
-        header_up Upgrade {http.request.header.Upgrade}
+# PDS API + handle resolution (wildcard via DNS-01)
+{$PDS_HOSTNAME:pds.example}, *.{$PDS_HOSTNAME:pds.example} {
+    tls {
+        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
     }
 
-    header {
-        Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
-        X-Content-Type-Options "nosniff"
+    # Auth service gets its own handling
+    @auth host auth.{$PDS_HOSTNAME:pds.example}
+    handle @auth {
+        reverse_proxy {$AUTH_UPSTREAM:auth:3001}
+
+        header {
+            X-Frame-Options "DENY"
+            X-Content-Type-Options "nosniff"
+            Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://{$PDS_HOSTNAME:pds.example}"
+            Referrer-Policy "no-referrer"
+            Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+        }
     }
-}
 
-# Auth service (separate origin for security isolation)
-auth.{$PDS_HOSTNAME:pds.example} {
-    reverse_proxy {$AUTH_UPSTREAM:auth:3001}
+    # Everything else goes to PDS (main domain + handle subdomains)
+    handle {
+        reverse_proxy {$PDS_UPSTREAM:pds:3000} {
+            header_up Connection {http.request.header.Connection}
+            header_up Upgrade {http.request.header.Upgrade}
+        }
 
-    header {
-        X-Frame-Options "DENY"
-        X-Content-Type-Options "nosniff"
-        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://{$PDS_HOSTNAME:pds.example}"
-        Referrer-Policy "no-referrer"
-        Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+        header {
+            Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+            X-Content-Type-Options "nosniff"
+        }
     }
 }
