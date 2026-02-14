@@ -19,7 +19,7 @@
         header {
             X-Frame-Options "DENY"
             X-Content-Type-Options "nosniff"
-            Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://{$PDS_HOSTNAME:pds.example}"
+            Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://{$PDS_HOSTNAME:pds.example}"
             Referrer-Policy "no-referrer"
             Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
         }

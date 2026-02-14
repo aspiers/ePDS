@@ -36,7 +36,7 @@ export function createAuthService(config: AuthServiceConfig): { app: express.Exp
     res.setHeader('Referrer-Policy', 'no-referrer')
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'"
     )
     res.setHeader(
       'Strict-Transport-Security',
