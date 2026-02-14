@@ -118,14 +118,14 @@ export function renderOtpForm(opts: {
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: ${bgColor}; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .container { background: white; border-radius: 12px; padding: 40px; max-width: 420px; width: 100%; box-shadow: 0 2px 8px rgba(0,0,0,0.08); text-align: center; }
+    .container { background: transparent; padding: 40px; max-width: 420px; width: 100%; text-align: center; }
     h1 { font-size: 24px; margin-bottom: 8px; color: #1A130F; }
     .subtitle { color: #666; margin-bottom: 20px; font-size: 15px; line-height: 1.5; }
     .field { margin-bottom: 20px; }
     .otp-input { width: 100%; padding: 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 28px; text-align: center; letter-spacing: 8px; font-family: 'SF Mono', Menlo, Consolas, monospace; outline: none; }
     .otp-input:focus { border-color: ${brandColor}; }
-    .btn-primary { width: 100%; padding: 12px; background: ${brandColor}; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; }
-    .btn-primary:hover { background: ${brandColorHover}; }
+    .btn-primary { width: 100%; padding: 12px; background: #1A130F; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; }
+    .btn-primary:hover { background: #2a231f; }
     .btn-secondary { display: inline-block; color: #1A130F; background: none; border: none; font-size: 14px; cursor: pointer; text-decoration: underline; }
     .error { color: #dc3545; background: #fdf0f0; padding: 12px; border-radius: 8px; margin: 12px 0; }
   </style>
