@@ -8,6 +8,8 @@ import { setSessionCookie } from '../middleware/session.js'
  * POST /auth/send-magic-link
  *
  * Sends a magic link email. Responds with the "check your email" page.
+ * Always sends the link regardless of whether an account exists.
+ * Account auto-provisioning happens on verify (link click).
  */
 const logger = createLogger('auth:send-link')
 
@@ -17,8 +19,6 @@ export function createSendLinkRouter(ctx: AuthServiceContext): Router {
   router.post('/auth/send-magic-link', async (req: Request, res: Response) => {
     const email = (req.body.email as string || '').trim().toLowerCase()
     const requestUri = req.body.request_uri as string
-    const isSignup = req.body.is_signup === '1'
-    const isRecovery = req.body.is_recovery === '1'
     const clientId = req.body.client_id as string || ''
 
     if (!email || !requestUri) {
@@ -48,7 +48,6 @@ export function createSendLinkRouter(ctx: AuthServiceContext): Router {
     const ip = req.ip || req.socket.remoteAddress || null
     const rateLimitError = ctx.rateLimiter.check(email, ip)
     if (rateLimitError) {
-      // Same response whether rate limited or not (anti-enumeration)
       res.send(renderCheckEmail({
         email,
         csrfToken: res.locals.csrfToken,
@@ -58,71 +57,47 @@ export function createSendLinkRouter(ctx: AuthServiceContext): Router {
       return
     }
 
-    // If not signup and not recovery, check if account exists.
-    // But DON'T reveal this to the user (anti-enumeration).
-    // Always show the same "check your email" page.
-    let shouldSend = true
-    if (!isSignup && !isRecovery) {
-      const did = ctx.db.getDidByEmail(email)
-      if (!did) {
-        // No account, but we'll still show "check your email" (anti-enumeration)
-        // For signup flows or if account doesn't exist, we still send the link
-        // and create the account on verification
-        shouldSend = true // Send anyway - account will be created on verify
-      }
-    }
+    try {
+      // Create magic link token
+      const deviceInfo = req.headers['user-agent'] || null
+      const { token, csrf } = ctx.tokenService.create({
+        email,
+        authRequestId: requestUri,
+        clientId: clientId || null,
+        deviceInfo,
+      })
 
-    if (shouldSend) {
-      try {
-        // Create magic link token
-        const deviceInfo = req.headers['user-agent'] || null
-        const { token, csrf } = ctx.tokenService.create({
-          email,
-          authRequestId: requestUri,
-          clientId: clientId || null,
-          deviceInfo,
-        })
+      // Build the magic link URL
+      const magicLinkUrl = ctx.tokenService.buildUrl(token, csrf)
 
-        // Build the magic link URL
-        const magicLinkUrl = ctx.tokenService.buildUrl(token, csrf)
+      // Set session cookie for same-device detection
+      setSessionCookie(res, csrf)
 
-        // Set session cookie for same-device detection
-        setSessionCookie(res, csrf)
+      // Send the email
+      await ctx.emailSender.sendMagicLink({
+        to: email,
+        magicLinkUrl,
+        clientAppName: clientId ? await resolveClientName(clientId) : 'your application',
+        pdsName: ctx.config.hostname,
+        pdsDomain: ctx.config.pdsHostname,
+      })
 
-        // Send the email
-        await ctx.emailSender.sendMagicLink({
-          to: email,
-          magicLinkUrl,
-          clientAppName: clientId ? await resolveClientName(clientId) : 'your application',
-          pdsName: ctx.config.hostname,
-          pdsDomain: ctx.config.pdsHostname,
-        })
+      // Record the send for rate limiting
+      ctx.rateLimiter.record(email, ip)
 
-        // Record the send for rate limiting
-        ctx.rateLimiter.record(email, ip)
-
-        // Render check email page with polling
-        res.send(renderCheckEmail({
-          email,
-          csrf,
-          csrfToken: res.locals.csrfToken,
-          requestUri,
-          clientId,
-        }))
-      } catch (err) {
-        logger.error({ err }, 'Failed to send magic link')
-        res.status(500).send(renderCheckEmail({
-          email,
-          error: 'Failed to send email. Please try again.',
-          csrfToken: res.locals.csrfToken,
-          requestUri,
-          clientId,
-        }))
-      }
-    } else {
-      // Still show "check your email" to prevent enumeration
+      // Render check email page with polling
       res.send(renderCheckEmail({
         email,
+        csrf,
+        csrfToken: res.locals.csrfToken,
+        requestUri,
+        clientId,
+      }))
+    } catch (err) {
+      logger.error({ err }, 'Failed to send magic link')
+      res.status(500).send(renderCheckEmail({
+        email,
+        error: 'Failed to send email. Please try again.',
         csrfToken: res.locals.csrfToken,
         requestUri,
         clientId,

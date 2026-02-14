@@ -3,6 +3,7 @@ import type { AuthServiceContext } from '../context.js'
 import { createLogger } from '@magic-pds/shared'
 import { setSessionCookie } from '../middleware/session.js'
 import { setAccountSessionCookie, type AuthenticatedRequest } from '../middleware/account-auth.js'
+import { autoProvisionAccount } from '../lib/auto-provision.js'
 import * as crypto from 'node:crypto'
 
 const logger = createLogger('auth:account-login')
@@ -35,47 +36,38 @@ export function createAccountLoginRouter(ctx: AuthServiceContext): Router {
       return
     }
 
-    // Check if account exists (primary or backup email)
-    let did = ctx.db.getDidByEmail(email)
-    if (!did) did = ctx.db.getDidByBackupEmail(email)
+    // Always send the magic link, regardless of whether account exists.
+    // Account will be auto-provisioned when the user clicks the link.
+    try {
+      const deviceInfo = req.headers['user-agent'] || null
+      const authRequestId = 'account-settings:' + crypto.randomBytes(16).toString('hex')
+      const { token, csrf } = ctx.tokenService.create({
+        email,
+        authRequestId,
+        clientId: null,
+        deviceInfo,
+      })
 
-    if (did) {
-      try {
-        const deviceInfo = req.headers['user-agent'] || null
-        // Use a special auth request ID for account management sessions
-        const authRequestId = 'account-settings:' + crypto.randomBytes(16).toString('hex')
-        const { token, csrf } = ctx.tokenService.create({
-          email,
-          authRequestId,
-          clientId: null,
-          deviceInfo,
-        })
+      const verifyBase = ctx.config.magicLink.baseUrl.replace('/auth/verify', '/account/verify-session')
+      const verifyUrl = new URL(verifyBase)
+      verifyUrl.searchParams.set('token', token)
+      verifyUrl.searchParams.set('csrf', csrf)
+      const magicLinkUrl = verifyUrl.toString()
+      setSessionCookie(res, csrf)
 
-        // Build URL pointing to /account/verify-session instead of /auth/verify
-        const verifyBase = ctx.config.magicLink.baseUrl.replace('/auth/verify', '/account/verify-session')
-        const verifyUrl = new URL(verifyBase)
-        verifyUrl.searchParams.set('token', token)
-        verifyUrl.searchParams.set('csrf', csrf)
-        const magicLinkUrl = verifyUrl.toString()
-        setSessionCookie(res, csrf)
+      await ctx.emailSender.sendMagicLink({
+        to: email,
+        magicLinkUrl,
+        clientAppName: 'Account Settings',
+        pdsName: ctx.config.hostname,
+        pdsDomain: ctx.config.pdsHostname,
+      })
 
-        await ctx.emailSender.sendMagicLink({
-          to: email,
-          magicLinkUrl,
-          clientAppName: 'Account Settings',
-          pdsName: ctx.config.hostname,
-          pdsDomain: ctx.config.pdsHostname,
-        })
-
-        ctx.rateLimiter.record(email, ip)
-        res.send(renderCheckEmail({ email, csrf, csrfToken: res.locals.csrfToken }))
-      } catch (err) {
-        logger.error({ err }, 'Failed to send account login magic link')
-        res.status(500).send(renderCheckEmail({ email, csrfToken: res.locals.csrfToken, error: 'Failed to send email.' }))
-      }
-    } else {
-      // No account found, still show check email (anti-enumeration)
-      res.send(renderCheckEmail({ email, csrfToken: res.locals.csrfToken }))
+      ctx.rateLimiter.record(email, ip)
+      res.send(renderCheckEmail({ email, csrf, csrfToken: res.locals.csrfToken }))
+    } catch (err) {
+      logger.error({ err }, 'Failed to send account login magic link')
+      res.status(500).send(renderCheckEmail({ email, csrfToken: res.locals.csrfToken, error: 'Failed to send email.' }))
     }
   })
 
@@ -99,13 +91,17 @@ export function createAccountLoginRouter(ctx: AuthServiceContext): Router {
 
     const { email } = result
 
-    // Look up the DID
+    // Look up the DID, auto-provision if not found
     let did = ctx.db.getDidByEmail(email)
     if (!did) did = ctx.db.getDidByBackupEmail(email)
 
     if (!did) {
-      res.status(400).send('<p>No account found for this email.</p>')
-      return
+      // Auto-provision account on first verified click
+      did = await autoProvisionAccount(ctx, email) ?? undefined
+      if (!did) {
+        res.status(500).send('<p>Failed to create your account. Please try again.</p>')
+        return
+      }
     }
 
     // Create an account session
@@ -146,8 +142,6 @@ export function createAccountLoginRouter(ctx: AuthServiceContext): Router {
     if (status === 'verified') {
       const row = ctx.db.getMagicLinkTokenByCsrf(csrf)
       if (row) {
-        // Token was verified (by clicking magic link on another device)
-        // Create account session for THIS device too
         let did = ctx.db.getDidByEmail(row.email)
         if (!did) did = ctx.db.getDidByBackupEmail(row.email)
 

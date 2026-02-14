@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express'
 import type { AuthServiceContext } from '../context.js'
 import { getSessionCsrf } from '../middleware/session.js'
+import { autoProvisionAccount } from '../lib/auto-provision.js'
 
 /**
  * GET /auth/verify?token=...&csrf=...
@@ -8,6 +9,8 @@ import { getSessionCsrf } from '../middleware/session.js'
  * The magic link target. Verifies the token and either:
  * - Same device: redirects to consent screen
  * - Different device: shows "return to original browser" message
+ *
+ * If no account exists for the email, auto-provisions one.
  */
 export function createVerifyRouter(ctx: AuthServiceContext): Router {
   const router = Router()
@@ -40,17 +43,23 @@ export function createVerifyRouter(ctx: AuthServiceContext): Router {
 
     const { email, authRequestId, clientId, sameDevice } = result
 
-    // Check if account exists, create if not
+    // Check if account exists
     let did = ctx.db.getDidByEmail(email)
+    if (!did) did = ctx.db.getDidByBackupEmail(email)
+
     const isNewAccount = !did
 
+    // Auto-provision if no account exists
     if (!did) {
-      // Check backup email
-      did = ctx.db.getDidByBackupEmail(email)
+      did = await autoProvisionAccount(ctx, email) ?? undefined
+      if (!did) {
+        res.status(500).send(renderVerifyResult({
+          success: false,
+          message: 'Failed to create your account. Please try again.',
+        }))
+        return
+      }
     }
-
-    // Store verified state so the polling endpoint can detect it
-    // The token is already marked as used, and the CSRF-based poll will see "verified"
 
     if (sameDevice) {
       // Same device: redirect to consent screen
