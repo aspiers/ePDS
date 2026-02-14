@@ -2,16 +2,12 @@
     email admin@{$PDS_HOSTNAME:pds.example}
 }
 
-# PDS API + handle resolution (wildcard)
-{$PDS_HOSTNAME:pds.example}, *.{$PDS_HOSTNAME:pds.example} {
-    @notauth not host auth.{$PDS_HOSTNAME:pds.example}
-
-    handle @notauth {
-        reverse_proxy {$PDS_UPSTREAM:pds:3000} {
-            # WebSocket support for AT Protocol event streams
-            header_up Connection {http.request.header.Connection}
-            header_up Upgrade {http.request.header.Upgrade}
-        }
+# PDS API (no wildcard - handles use DNS verification)
+{$PDS_HOSTNAME:pds.example} {
+    reverse_proxy {$PDS_UPSTREAM:pds:3000} {
+        # WebSocket support for AT Protocol event streams
+        header_up Connection {http.request.header.Connection}
+        header_up Upgrade {http.request.header.Upgrade}
     }
 
     header {
