@@ -1,7 +1,7 @@
 {
     email admin@{$PDS_HOSTNAME:pds.example}
     on_demand_tls {
-        ask http://localhost:3000/xrpc/_health
+        ask http://{$PDS_UPSTREAM:pds:3000}/xrpc/_health
     }
 }
 
