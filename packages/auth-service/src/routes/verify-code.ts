@@ -39,6 +39,9 @@ export function createVerifyCodeRouter(ctx: AuthServiceContext): Router {
     if (!did) did = ctx.db.getDidByBackupEmail(result.email)
     const isNewAccount = !did
 
+    // Record this client login (for per-client welcome vs sign-in emails)
+    ctx.db.recordClientLogin(result.email, clientId || 'account-settings')
+
     // Skip consent — OTP verification is sufficient confirmation.
     // Account creation (if new) is handled by the PDS magic callback.
     const params = new URLSearchParams({

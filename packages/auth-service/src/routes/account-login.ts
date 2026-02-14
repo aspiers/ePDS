@@ -45,7 +45,7 @@ export function createAccountLoginRouter(ctx: AuthServiceContext): Router {
         deviceInfo,
       })
 
-      const isNewUser = !ctx.db.getDidByEmail(email)
+      const isNewUser = !ctx.db.hasClientLogin(email, 'account-settings')
 
       await ctx.emailSender.sendOtpCode({
         to: email,
@@ -114,6 +114,9 @@ export function createAccountLoginRouter(ctx: AuthServiceContext): Router {
         return
       }
     }
+
+    // Record this client login (for per-client welcome vs sign-in emails)
+    ctx.db.recordClientLogin(result.email, 'account-settings')
 
     // Create account session
     const accountSessionId = crypto.randomBytes(32).toString('hex')

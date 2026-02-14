@@ -132,6 +132,18 @@ export class MagicPdsDb {
 
       // v2: Add code_hash column for OTP support
       () => { this.db.exec('ALTER TABLE magic_link_token ADD COLUMN code_hash TEXT') },
+
+      // v3: Per-client login tracking for welcome vs sign-in emails
+      () => {
+        this.db.exec(`
+          CREATE TABLE IF NOT EXISTS client_logins (
+            email      TEXT NOT NULL,
+            client_id  TEXT NOT NULL,
+            first_login_at INTEGER NOT NULL,
+            PRIMARY KEY (email, client_id)
+          );
+        `)
+      },
     ]
 
     for (let i = currentVersion; i < migrations.length; i++) {
@@ -377,6 +389,21 @@ export class MagicPdsDb {
     const backupEmails = (this.db.prepare('SELECT COUNT(*) as c FROM backup_email WHERE verified = 1').get() as { c: number }).c
     const rateLimitEntries = (this.db.prepare('SELECT COUNT(*) as c FROM email_rate_limit').get() as { c: number }).c
     return { totalAccounts, pendingTokens, activeSessions, backupEmails, rateLimitEntries }
+  }
+
+  // ── Per-Client Login Tracking ──
+
+  hasClientLogin(email: string, clientId: string): boolean {
+    const row = this.db.prepare(
+      `SELECT 1 FROM client_logins WHERE email = ? AND client_id = ?`
+    ).get(email.toLowerCase(), clientId)
+    return !!row
+  }
+
+  recordClientLogin(email: string, clientId: string): void {
+    this.db.prepare(
+      `INSERT OR IGNORE INTO client_logins (email, client_id, first_login_at) VALUES (?, ?, ?)`
+    ).run(email.toLowerCase(), clientId, Date.now())
   }
 
   close(): void {

@@ -50,16 +50,7 @@ export function createSendCodeRouter(ctx: AuthServiceContext): Router {
         deviceInfo,
       })
 
-      // Check the PDS (source of truth) for whether this email has an account
-      let isNewUser = true
-      try {
-        const pdsUrl = process.env.PDS_INTERNAL_URL || ctx.config.pdsPublicUrl
-        const checkRes = await fetch(`${pdsUrl}/_magic/check-email?email=${encodeURIComponent(email)}`, { signal: AbortSignal.timeout(3000) })
-        if (checkRes.ok) {
-          const data = await checkRes.json() as { exists: boolean }
-          isNewUser = !data.exists
-        }
-      } catch { /* fallback: treat as new */ }
+      const isNewUser = !ctx.db.hasClientLogin(email, clientId || 'account-settings')
       const clientName = clientMeta.client_name || 'your application'
 
       await ctx.emailSender.sendOtpCode({
