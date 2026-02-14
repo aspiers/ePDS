@@ -262,7 +262,7 @@ async function main() {
   // =========================================================================
 
   // Internal endpoint for auth service to check if an email has an existing account
-  pds.app.get('/xrpc/_magic/check-email', (req, res) => {
+  pds.app.get('/_magic/check-email', (req, res) => {
     const email = (req.query.email as string || '').trim().toLowerCase()
     if (!email) {
       res.status(400).json({ error: 'email required' })

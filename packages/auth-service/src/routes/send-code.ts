@@ -54,7 +54,7 @@ export function createSendCodeRouter(ctx: AuthServiceContext): Router {
       let isNewUser = true
       try {
         const pdsUrl = process.env.PDS_INTERNAL_URL || ctx.config.pdsPublicUrl
-        const checkRes = await fetch(`${pdsUrl}/xrpc/_magic/check-email?email=${encodeURIComponent(email)}`, { signal: AbortSignal.timeout(3000) })
+        const checkRes = await fetch(`${pdsUrl}/_magic/check-email?email=${encodeURIComponent(email)}`, { signal: AbortSignal.timeout(3000) })
         if (checkRes.ok) {
           const data = await checkRes.json() as { exists: boolean }
           isNewUser = !data.exists
