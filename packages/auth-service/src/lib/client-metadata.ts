@@ -12,6 +12,8 @@ export interface ClientMetadata {
   policy_uri?: string
   email_template_uri?: string
   email_subject_template?: string
+  brand_color?: string
+  background_color?: string
 }
 
 interface CacheEntry {
