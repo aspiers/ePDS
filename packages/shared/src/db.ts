@@ -12,6 +12,7 @@ export interface MagicLinkTokenRow {
   clientId: string | null
   deviceInfo: string | null
   csrfToken: string
+  codeHash: string | null
   attempts: number
 }
 
@@ -129,8 +130,8 @@ export class MagicPdsDb {
         `)
       },
 
-      // Future migrations go here as v2, v3, etc.
-      // () => { this.db.exec('ALTER TABLE ...') },
+      // v2: Add code_hash column for OTP support
+      () => { this.db.exec('ALTER TABLE magic_link_token ADD COLUMN code_hash TEXT') },
     ]
 
     for (let i = currentVersion; i < migrations.length; i++) {
@@ -149,11 +150,12 @@ export class MagicPdsDb {
     clientId: string | null
     deviceInfo: string | null
     csrfToken: string
+    codeHash?: string | null
   }): void {
     const now = Date.now()
     this.db.prepare(`
-      INSERT INTO magic_link_token (token_hash, email, created_at, expires_at, auth_request_id, client_id, device_info, csrf_token)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO magic_link_token (token_hash, email, created_at, expires_at, auth_request_id, client_id, device_info, csrf_token, code_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       data.tokenHash,
       data.email.toLowerCase(),
@@ -163,6 +165,7 @@ export class MagicPdsDb {
       data.clientId,
       data.deviceInfo,
       data.csrfToken,
+      data.codeHash || null,
     )
   }
 
@@ -171,7 +174,7 @@ export class MagicPdsDb {
       SELECT
         token_hash as tokenHash, email, created_at as createdAt,
         expires_at as expiresAt, used, auth_request_id as authRequestId,
-        client_id as clientId, device_info as deviceInfo, csrf_token as csrfToken, attempts
+        client_id as clientId, device_info as deviceInfo, csrf_token as csrfToken, code_hash as codeHash, attempts
       FROM magic_link_token WHERE token_hash = ?
     `).get(tokenHash) as MagicLinkTokenRow | undefined
   }
@@ -295,7 +298,7 @@ export class MagicPdsDb {
       SELECT
         token_hash as tokenHash, email, created_at as createdAt,
         expires_at as expiresAt, used, auth_request_id as authRequestId,
-        client_id as clientId, device_info as deviceInfo, csrf_token as csrfToken, attempts
+        client_id as clientId, device_info as deviceInfo, csrf_token as csrfToken, code_hash as codeHash, attempts
       FROM magic_link_token WHERE csrf_token = ? ORDER BY created_at DESC LIMIT 1
     `).get(csrfToken) as MagicLinkTokenRow | undefined
   }

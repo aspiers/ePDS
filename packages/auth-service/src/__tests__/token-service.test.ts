@@ -5,133 +5,116 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
 
-let db: MagicPdsDb
-let service: MagicLinkTokenService
-let dbPath: string
+describe('MagicLinkTokenService (OTP)', () => {
+  let db: MagicPdsDb
+  let service: MagicLinkTokenService
+  let dbPath: string
 
-beforeEach(() => {
-  dbPath = path.join(os.tmpdir(), `magic-pds-token-test-${Date.now()}-${Math.random().toString(36).slice(2)}.sqlite`)
-  db = new MagicPdsDb(dbPath)
-  service = new MagicLinkTokenService(db, {
-    expiryMinutes: 10,
-    baseUrl: 'https://auth.example.com/auth/verify',
-    maxAttemptsPerToken: 3,
+  beforeEach(() => {
+    dbPath = path.join(os.tmpdir(), `test-otp-${Date.now()}.db`)
+    db = new MagicPdsDb(dbPath)
+    service = new MagicLinkTokenService(db, {
+      expiryMinutes: 10,
+      maxAttemptsPerToken: 5,
+    })
   })
-})
 
-afterEach(() => {
-  db.close()
-  try { fs.unlinkSync(dbPath) } catch {}
-  try { fs.unlinkSync(dbPath + '-wal') } catch {}
-  try { fs.unlinkSync(dbPath + '-shm') } catch {}
-})
+  afterEach(() => {
+    db.close()
+    try { fs.unlinkSync(dbPath) } catch {}
+  })
 
-describe('MagicLinkTokenService', () => {
   describe('create', () => {
-    it('returns a token and csrf', () => {
-      const { token, csrf } = service.create({
+    it('returns a 6-digit code and session ID', () => {
+      const { code, sessionId } = service.create({
         email: 'test@example.com',
-        authRequestId: 'urn:req:1',
+        authRequestId: 'req:123',
         clientId: null,
-        deviceInfo: 'TestBrowser',
-      })
-
-      expect(token).toBeDefined()
-      expect(csrf).toBeDefined()
-      expect(token.length).toBeGreaterThan(20)
-      expect(csrf.length).toBeGreaterThan(20)
-    })
-  })
-
-  describe('buildUrl', () => {
-    it('builds a URL with token and csrf params', () => {
-      const url = service.buildUrl('my-token', 'my-csrf')
-      expect(url).toBe('https://auth.example.com/auth/verify?token=my-token&csrf=my-csrf')
-    })
-  })
-
-  describe('verify', () => {
-    it('verifies a valid token (same device)', () => {
-      const { token, csrf } = service.create({
-        email: 'user@test.com',
-        authRequestId: 'urn:req:2',
-        clientId: 'https://app.example/metadata.json',
         deviceInfo: null,
       })
 
-      const result = service.verify(token, csrf)
+      expect(code).toMatch(/^\d{6}$/)
+      expect(sessionId).toBeTruthy()
+      expect(sessionId.length).toBe(64) // 32 bytes hex
+    })
+  })
+
+  describe('verifyCode', () => {
+    it('verifies a correct code', () => {
+      const { code, sessionId } = service.create({
+        email: 'test@example.com',
+        authRequestId: 'req:123',
+        clientId: 'client-1',
+        deviceInfo: 'test-agent',
+      })
+
+      const result = service.verifyCode(sessionId, code)
       expect('error' in result).toBe(false)
       if (!('error' in result)) {
-        expect(result.email).toBe('user@test.com')
-        expect(result.authRequestId).toBe('urn:req:2')
-        expect(result.clientId).toBe('https://app.example/metadata.json')
-        expect(result.sameDevice).toBe(true)
+        expect(result.email).toBe('test@example.com')
+        expect(result.authRequestId).toBe('req:123')
+        expect(result.clientId).toBe('client-1')
       }
     })
 
-    it('detects cross-device (different csrf)', () => {
-      const { token } = service.create({
-        email: 'user@test.com',
-        authRequestId: 'urn:req:3',
+    it('rejects an incorrect code', () => {
+      const { sessionId } = service.create({
+        email: 'test@example.com',
+        authRequestId: 'req:123',
         clientId: null,
         deviceInfo: null,
       })
 
-      const result = service.verify(token, 'wrong-csrf')
-      expect('error' in result).toBe(false)
-      if (!('error' in result)) {
-        expect(result.sameDevice).toBe(false)
-      }
-    })
-
-    it('rejects already-used tokens', () => {
-      const { token, csrf } = service.create({
-        email: 'user@test.com',
-        authRequestId: 'urn:req:4',
-        clientId: null,
-        deviceInfo: null,
-      })
-
-      // First use succeeds
-      service.verify(token, csrf)
-
-      // Second use fails
-      const result = service.verify(token, csrf)
+      const result = service.verifyCode(sessionId, '000000')
       expect('error' in result).toBe(true)
     })
 
-    it('rejects invalid tokens', () => {
-      const result = service.verify('nonexistent-token', undefined)
+    it('rejects an already-used code', () => {
+      const { code, sessionId } = service.create({
+        email: 'test@example.com',
+        authRequestId: 'req:123',
+        clientId: null,
+        deviceInfo: null,
+      })
+
+      service.verifyCode(sessionId, code) // first use
+      const result = service.verifyCode(sessionId, code) // second use
+      expect('error' in result).toBe(true)
+    })
+
+    it('rejects after too many attempts', () => {
+      const { sessionId } = service.create({
+        email: 'test@example.com',
+        authRequestId: 'req:123',
+        clientId: null,
+        deviceInfo: null,
+      })
+
+      for (let i = 0; i < 6; i++) {
+        service.verifyCode(sessionId, '999999')
+      }
+
+      const result = service.verifyCode(sessionId, '999999')
+      expect('error' in result).toBe(true)
+    })
+
+    it('rejects invalid session ID', () => {
+      const result = service.verifyCode('nonexistent', '123456')
       expect('error' in result).toBe(true)
     })
   })
 
-  describe('checkStatus', () => {
-    it('returns pending for unused tokens', () => {
-      const { csrf } = service.create({
-        email: 'poll@test.com',
-        authRequestId: 'urn:req:5',
+  describe('cleanup', () => {
+    it('removes expired tokens', () => {
+      service.create({
+        email: 'test@example.com',
+        authRequestId: 'req:123',
         clientId: null,
         deviceInfo: null,
       })
 
-      expect(service.checkStatus(csrf)).toBe('pending')
-    })
-
-    it('returns verified after token is used', () => {
-      const { token, csrf } = service.create({
-        email: 'poll@test.com',
-        authRequestId: 'urn:req:6',
-        clientId: null,
-        deviceInfo: null,
-      })
-
-      service.verify(token, csrf)
-      expect(service.checkStatus(csrf)).toBe('verified')
-    })
-
-    it('returns expired for unknown csrf', () => {
-      expect(service.checkStatus('no-such-csrf')).toBe('expired')
+      const cleaned = service.cleanup()
+      expect(cleaned).toBe(0) // not expired yet
     })
   })
 })

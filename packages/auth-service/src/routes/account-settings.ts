@@ -54,7 +54,7 @@ export function createAccountSettingsRouter(ctx: AuthServiceContext): Router {
       ctx.db.addBackupEmail(session.did, email, tokenHash)
 
       // Build verification URL
-      const baseUrl = ctx.config.magicLink.baseUrl.replace('/auth/verify', '/account/backup-email/verify')
+      const baseUrl = 'https://' + ctx.config.hostname + '/account/backup-email/verify'
       const verifyUrl = new URL(baseUrl)
       verifyUrl.searchParams.set('token', token)
       const url = verifyUrl.toString()

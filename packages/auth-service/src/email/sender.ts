@@ -64,41 +64,40 @@ export class EmailSender {
     }
   }
 
-  async sendMagicLink(opts: {
+  async sendOtpCode(opts: {
     to: string
-    magicLinkUrl: string
+    code: string
     clientAppName: string
     pdsName: string
     pdsDomain: string
     isNewUser?: boolean
   }): Promise<void> {
-    const { to, magicLinkUrl, clientAppName, pdsName, pdsDomain, isNewUser } = opts
+    const { to, code, clientAppName, pdsName, pdsDomain, isNewUser } = opts
 
     if (isNewUser) {
-      await this.sendWelcomeEmail({ to, magicLinkUrl, clientAppName, pdsName, pdsDomain })
+      await this.sendWelcomeCode({ to, code, pdsName, pdsDomain })
     } else {
-      await this.sendSignInEmail({ to, magicLinkUrl, clientAppName, pdsName, pdsDomain })
+      await this.sendSignInCode({ to, code, clientAppName, pdsName, pdsDomain })
     }
   }
 
-  private async sendSignInEmail(opts: {
+  private async sendSignInCode(opts: {
     to: string
-    magicLinkUrl: string
+    code: string
     clientAppName: string
     pdsName: string
     pdsDomain: string
   }): Promise<void> {
-    const { to, magicLinkUrl, clientAppName, pdsName, pdsDomain } = opts
+    const { to, code, clientAppName, pdsName, pdsDomain } = opts
 
-    const subject = `Sign in to ${clientAppName} via ${pdsName}`
+    const subject = `${code} is your sign-in code for ${pdsName}`
 
     const text = [
-      `You requested to sign in to ${clientAppName}.`,
+      `Your sign-in code for ${clientAppName}:`,
       '',
-      `Click the link below to continue:`,
-      magicLinkUrl,
+      code,
       '',
-      `This link expires in 10 minutes and can only be used once.`,
+      `This code expires in 10 minutes.`,
       '',
       `If you didn't request this, you can safely ignore this email.`,
       '',
@@ -110,15 +109,13 @@ export class EmailSender {
 <!DOCTYPE html>
 <html>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
-  <p>You requested to sign in to <strong>${this.escapeHtml(clientAppName)}</strong>.</p>
-  <p>Click the button below to continue:</p>
-  <p style="margin: 30px 0;">
-    <a href="${this.escapeHtml(magicLinkUrl)}"
-       style="background-color: #0f1828; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 500; display: inline-block;">
-      Sign in to ${this.escapeHtml(clientAppName)}
-    </a>
+  <p>Your sign-in code for <strong>${this.escapeHtml(clientAppName)}</strong>:</p>
+  <p style="margin: 30px 0; text-align: center;">
+    <span style="font-size: 36px; font-family: 'SF Mono', 'Menlo', 'Consolas', monospace; letter-spacing: 8px; background: #f5f5f5; padding: 16px 24px; border-radius: 8px; display: inline-block; font-weight: 600; color: #0f1828;">
+      ${this.escapeHtml(code)}
+    </span>
   </p>
-  <p style="color: #666; font-size: 14px;">This link expires in 10 minutes and can only be used once.</p>
+  <p style="color: #666; font-size: 14px;">This code expires in 10 minutes.</p>
   <p style="color: #666; font-size: 14px;">If you didn't request this, you can safely ignore this email.</p>
   <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
   <p style="color: #999; font-size: 12px;">${this.escapeHtml(pdsName)} (${this.escapeHtml(pdsDomain)})</p>
@@ -134,24 +131,26 @@ export class EmailSender {
     })
   }
 
-  private async sendWelcomeEmail(opts: {
+  private async sendWelcomeCode(opts: {
     to: string
-    magicLinkUrl: string
-    clientAppName: string
+    code: string
     pdsName: string
     pdsDomain: string
   }): Promise<void> {
-    const { to, magicLinkUrl, clientAppName, pdsName, pdsDomain } = opts
+    const { to, code, pdsName, pdsDomain } = opts
 
-    const subject = `Welcome to ${pdsName} — confirm your account`
+    const subject = `${code} — Welcome to ${pdsName}`
 
     const text = [
       `Welcome to ${pdsName}!`,
       '',
-      `An account is being created for you. Click the link below to confirm your email and get started:`,
-      magicLinkUrl,
+      `Your verification code:`,
       '',
-      `This link expires in 10 minutes and can only be used once.`,
+      code,
+      '',
+      `Enter this code to confirm your email and create your account.`,
+      '',
+      `This code expires in 10 minutes.`,
       '',
       `If you didn't sign up, you can safely ignore this email.`,
       '',
@@ -164,14 +163,13 @@ export class EmailSender {
 <html>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
   <h2 style="color: #0f1828; margin-bottom: 8px;">Welcome to ${this.escapeHtml(pdsName)}</h2>
-  <p>An account is being created for you. Click the button below to confirm your email and get started:</p>
-  <p style="margin: 30px 0;">
-    <a href="${this.escapeHtml(magicLinkUrl)}"
-       style="background-color: #0f1828; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 500; display: inline-block;">
-      Confirm &amp; get started
-    </a>
+  <p>Enter this code to confirm your email and create your account:</p>
+  <p style="margin: 30px 0; text-align: center;">
+    <span style="font-size: 36px; font-family: 'SF Mono', 'Menlo', 'Consolas', monospace; letter-spacing: 8px; background: #f5f5f5; padding: 16px 24px; border-radius: 8px; display: inline-block; font-weight: 600; color: #0f1828;">
+      ${this.escapeHtml(code)}
+    </span>
   </p>
-  <p style="color: #666; font-size: 14px;">This link expires in 10 minutes and can only be used once.</p>
+  <p style="color: #666; font-size: 14px;">This code expires in 10 minutes.</p>
   <p style="color: #666; font-size: 14px;">If you didn't sign up, you can safely ignore this email.</p>
   <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
   <p style="color: #999; font-size: 12px;">${this.escapeHtml(pdsName)} (${this.escapeHtml(pdsDomain)})</p>

@@ -62,7 +62,7 @@ function renderEmailForm(opts: {
   <div class="container">
     <h1>${title}</h1>
     <p class="subtitle">${subtitle}</p>
-    <form method="POST" action="/auth/send-magic-link">
+    <form method="POST" action="/auth/send-code">
       <input type="hidden" name="csrf" value="${escapeHtml(opts.csrfToken)}">
       <input type="hidden" name="request_uri" value="${escapeHtml(opts.requestUri)}">
       <input type="hidden" name="client_id" value="${escapeHtml(opts.clientId)}">

@@ -1,6 +1,5 @@
 export interface MagicLinkConfig {
   expiryMinutes: number
-  baseUrl: string
   maxAttemptsPerToken: number
 }
 

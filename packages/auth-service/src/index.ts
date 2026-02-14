@@ -6,9 +6,8 @@ import { AuthServiceContext, type AuthServiceConfig } from './context.js'
 import { csrfProtection } from './middleware/csrf.js'
 import { requestRateLimit } from './middleware/rate-limit.js'
 import { createAuthorizeRouter } from './routes/authorize.js'
-import { createSendLinkRouter } from './routes/send-link.js'
-import { createVerifyRouter } from './routes/verify.js'
-import { createStatusRouter } from './routes/status.js'
+import { createSendCodeRouter } from './routes/send-code.js'
+import { createVerifyCodeRouter } from './routes/verify-code.js'
 import { createConsentRouter } from './routes/consent.js'
 import { createRecoveryRouter } from './routes/recovery.js'
 import { createAccountLoginRouter } from './routes/account-login.js'
@@ -51,9 +50,8 @@ export function createAuthService(config: AuthServiceConfig): { app: express.Exp
 
   // Routes
   app.use(createAuthorizeRouter(ctx))
-  app.use(createSendLinkRouter(ctx))
-  app.use(createVerifyRouter(ctx))
-  app.use(createStatusRouter(ctx))
+  app.use(createSendCodeRouter(ctx))
+  app.use(createVerifyCodeRouter(ctx))
   app.use(createConsentRouter(ctx))
   app.use(createRecoveryRouter(ctx))
   app.use(createAccountLoginRouter(ctx))
@@ -97,8 +95,7 @@ function main() {
     pdsPublicUrl: process.env.PDS_PUBLIC_URL || 'http://localhost:3000',
     magicLink: {
       expiryMinutes: parseInt(process.env.MAGIC_LINK_EXPIRY_MINUTES || '10', 10),
-      baseUrl: process.env.MAGIC_LINK_BASE_URL || 'http://auth.localhost:3001/auth/verify',
-      maxAttemptsPerToken: 3,
+      maxAttemptsPerToken: 5,
     },
     email: {
       provider: (process.env.EMAIL_PROVIDER || 'smtp') as 'smtp',

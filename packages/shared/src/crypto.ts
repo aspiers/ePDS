@@ -31,6 +31,14 @@ export function timingSafeEqual(a: string, b: string): boolean {
   return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))
 }
 
+/** Generate a 6-digit OTP code. Returns the code and its SHA-256 hash. */
+export function generateOtpCode(): { code: string; codeHash: string } {
+  const num = crypto.randomInt(0, 1_000_000)
+  const code = num.toString().padStart(6, '0')
+  const codeHash = hashToken(code)
+  return { code, codeHash }
+}
+
 /** Generate a CSRF token. */
 export function generateCsrfToken(): string {
   return crypto.randomBytes(32).toString('hex')

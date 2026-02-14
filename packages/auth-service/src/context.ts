@@ -13,7 +13,6 @@ export interface AuthServiceConfig {
   pdsPublicUrl: string
   magicLink: {
     expiryMinutes: number
-    baseUrl: string
     maxAttemptsPerToken: number
   }
   email: {

@@ -10,6 +10,7 @@ export {
   hashToken,
   timingSafeEqual,
   generateCsrfToken,
+  generateOtpCode,
   generateRandomHandle,
 } from './crypto.js'
 export type {

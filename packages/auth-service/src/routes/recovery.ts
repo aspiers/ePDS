@@ -1,7 +1,6 @@
 import { Router, type Request, type Response } from 'express'
 import type { AuthServiceContext } from '../context.js'
 import { createLogger } from '@magic-pds/shared'
-import { setSessionCookie } from '../middleware/session.js'
 
 const logger = createLogger('auth:recovery')
 
@@ -47,29 +46,27 @@ export function createRecoveryRouter(ctx: AuthServiceContext): Router {
     const ip = req.ip || req.socket.remoteAddress || null
     const rateLimitError = ctx.rateLimiter.check(email, ip)
     if (rateLimitError) {
-      res.send(renderCheckRecoveryEmail({ email, csrfToken: res.locals.csrfToken, requestUri }))
+      // Anti-enumeration: show OTP form even if rate limited
+      res.send(renderOtpForm({ email, sessionId: '', csrfToken: res.locals.csrfToken, requestUri, error: 'Too many requests. Please wait a moment.' }))
       return
     }
 
-    // Look up backup email - ALWAYS show "check your email" (anti-enumeration)
+    // Look up backup email - ALWAYS show OTP form (anti-enumeration)
     const did = ctx.db.getDidByBackupEmail(email)
 
     if (did) {
       try {
         const deviceInfo = req.headers['user-agent'] || null
-        const { token, csrf } = ctx.tokenService.create({
+        const { code, sessionId } = ctx.tokenService.create({
           email,
           authRequestId: requestUri,
           clientId: null,
           deviceInfo,
         })
 
-        const magicLinkUrl = ctx.tokenService.buildUrl(token, csrf)
-        setSessionCookie(res, csrf)
-
-        await ctx.emailSender.sendMagicLink({
+        await ctx.emailSender.sendOtpCode({
           to: email,
-          magicLinkUrl,
+          code,
           clientAppName: 'account recovery',
           pdsName: ctx.config.hostname,
           pdsDomain: ctx.config.pdsHostname,
@@ -77,28 +74,61 @@ export function createRecoveryRouter(ctx: AuthServiceContext): Router {
 
         ctx.rateLimiter.record(email, ip)
 
-        res.send(renderCheckRecoveryEmail({
+        res.send(renderOtpForm({
           email,
-          csrf,
+          sessionId,
           csrfToken: res.locals.csrfToken,
           requestUri,
         }))
       } catch (err) {
-        logger.error({ err }, 'Failed to send recovery magic link')
-        res.status(500).send(renderCheckRecoveryEmail({
+        logger.error({ err }, 'Failed to send recovery OTP')
+        res.status(500).send(renderOtpForm({
           email,
+          sessionId: '',
           csrfToken: res.locals.csrfToken,
           requestUri,
-          error: 'Failed to send email. Please try again.',
+          error: 'Failed to send code. Please try again.',
         }))
       }
     } else {
-      res.send(renderCheckRecoveryEmail({
+      // No backup email found, but show OTP form anyway (anti-enumeration)
+      res.send(renderOtpForm({
         email,
+        sessionId: '',
         csrfToken: res.locals.csrfToken,
         requestUri,
       }))
     }
+  })
+
+  // POST /auth/recover/verify - verify recovery OTP
+  router.post('/auth/recover/verify', async (req: Request, res: Response) => {
+    const sessionId = req.body.session_id as string
+    const code = (req.body.code as string || '').trim()
+    const email = (req.body.email as string || '').trim().toLowerCase()
+    const requestUri = req.body.request_uri as string
+
+    if (!sessionId || !code || !email || !requestUri) {
+      res.status(400).send('<p>Missing required fields.</p>')
+      return
+    }
+
+    const result = ctx.tokenService.verifyCode(sessionId, code)
+
+    if ('error' in result) {
+      res.send(renderOtpForm({
+        email,
+        sessionId,
+        csrfToken: res.locals.csrfToken,
+        requestUri,
+        error: result.error,
+      }))
+      return
+    }
+
+    // Recovery verified - redirect to consent
+    const consentUrl = `/auth/consent?request_uri=${encodeURIComponent(result.authRequestId)}&email=${encodeURIComponent(result.email)}&new=0`
+    res.redirect(303, consentUrl)
   })
 
   return router
@@ -131,7 +161,7 @@ function renderRecoveryForm(opts: {
         <input type="email" id="email" name="email" required autofocus
                placeholder="backup@example.com">
       </div>
-      <button type="submit" class="btn-primary">Send recovery link</button>
+      <button type="submit" class="btn-primary">Send recovery code</button>
     </form>
     <a href="/oauth/authorize?request_uri=${encodedUri}" class="btn-secondary">Back to sign in</a>
   </div>
@@ -139,67 +169,49 @@ function renderRecoveryForm(opts: {
 </html>`
 }
 
-function renderCheckRecoveryEmail(opts: {
+function renderOtpForm(opts: {
   email: string
-  csrf?: string
+  sessionId: string
   csrfToken: string
   requestUri: string
   error?: string
 }): string {
   const maskedEmail = maskEmail(opts.email)
   const encodedUri = encodeURIComponent(opts.requestUri)
-  const pollScript = opts.csrf ? `
-    <script>
-      (function() {
-        var csrf = ${JSON.stringify(opts.csrf)};
-        var attempts = 0;
-        var maxAttempts = 300;
-
-        function poll() {
-          if (attempts++ >= maxAttempts) return;
-          fetch('/auth/status?csrf=' + encodeURIComponent(csrf))
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-              if (data.status === 'verified' && data.redirect) {
-                window.location.href = data.redirect;
-              } else if (data.status === 'expired') {
-                document.getElementById('poll-status').textContent = 'Link expired. Please request a new one.';
-              } else {
-                setTimeout(poll, 2000);
-              }
-            })
-            .catch(function() { setTimeout(poll, 2000); });
-        }
-        poll();
-      })();
-    </script>` : ''
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Check your email</title>
+  <title>Enter recovery code</title>
   <style>${CSS}</style>
 </head>
 <body>
   <div class="container">
-    <div class="check-icon">&#9993;</div>
-    <h1>Check your backup email</h1>
-    ${opts.error
-      ? '<p class="error">' + escapeHtml(opts.error) + '</p>'
-      : '<p class="subtitle">If a backup email matches, we sent a recovery link to <strong>' + escapeHtml(maskedEmail) + '</strong></p>'
-    }
-    <p class="info" id="poll-status">Waiting for you to click the link...</p>
-    <form method="POST" action="/auth/recover" style="margin-top: 20px">
+    <h1>Enter recovery code</h1>
+    <p class="subtitle">If a backup email matches, we sent a 6-digit code to <strong>${escapeHtml(maskedEmail)}</strong></p>
+    ${opts.error ? '<p class="error">' + escapeHtml(opts.error) + '</p>' : ''}
+    <form method="POST" action="/auth/recover/verify">
+      <input type="hidden" name="csrf" value="${escapeHtml(opts.csrfToken)}">
+      <input type="hidden" name="session_id" value="${escapeHtml(opts.sessionId)}">
+      <input type="hidden" name="request_uri" value="${escapeHtml(opts.requestUri)}">
+      <input type="hidden" name="email" value="${escapeHtml(opts.email)}">
+      <div class="field">
+        <input type="text" id="code" name="code" required autofocus
+               maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code"
+               placeholder="000000" class="otp-input">
+      </div>
+      <button type="submit" class="btn-primary">Verify</button>
+    </form>
+    <form method="POST" action="/auth/recover" style="margin-top: 12px;">
       <input type="hidden" name="csrf" value="${escapeHtml(opts.csrfToken)}">
       <input type="hidden" name="request_uri" value="${escapeHtml(opts.requestUri)}">
       <input type="hidden" name="email" value="${escapeHtml(opts.email)}">
-      <button type="submit" class="btn-secondary">Resend link</button>
+      <button type="submit" class="btn-secondary">Resend code</button>
     </form>
     <a href="/oauth/authorize?request_uri=${encodedUri}" class="btn-secondary">Back to sign in</a>
   </div>
-  ${pollScript}
 </body>
 </html>`
 }
@@ -228,15 +240,14 @@ const CSS = `
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
   .container { background: white; border-radius: 12px; padding: 40px; max-width: 420px; width: 100%; box-shadow: 0 2px 8px rgba(0,0,0,0.08); text-align: center; }
   h1 { font-size: 24px; margin-bottom: 8px; color: #111; }
-  .subtitle { color: #666; margin-bottom: 16px; font-size: 15px; line-height: 1.5; }
+  .subtitle { color: #666; margin-bottom: 20px; font-size: 15px; line-height: 1.5; }
   .field { margin-bottom: 20px; text-align: left; }
   .field label { display: block; font-size: 14px; font-weight: 500; color: #333; margin-bottom: 6px; }
-  .field input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; outline: none; transition: border-color 0.15s; }
+  .field input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; outline: none; }
   .field input:focus { border-color: #0f1828; }
-  .btn-primary { width: 100%; padding: 12px; background: #0f1828; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; transition: background 0.15s; }
+  .otp-input { font-size: 28px !important; text-align: center; letter-spacing: 8px; font-family: 'SF Mono', Menlo, Consolas, monospace !important; padding: 14px !important; }
+  .btn-primary { width: 100%; padding: 12px; background: #0f1828; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; }
   .btn-primary:hover { background: #1a2a40; }
   .btn-secondary { display: inline-block; margin-top: 12px; color: #0f1828; background: none; border: none; font-size: 14px; cursor: pointer; text-decoration: underline; }
   .error { color: #dc3545; background: #fdf0f0; padding: 12px; border-radius: 8px; margin: 12px 0; }
-  .info { color: #999; font-size: 14px; }
-  .check-icon { font-size: 48px; margin-bottom: 16px; }
 `

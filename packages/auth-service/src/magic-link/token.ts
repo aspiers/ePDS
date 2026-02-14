@@ -1,22 +1,16 @@
 import {
   MagicPdsDb,
-  generateMagicLinkToken,
+  generateOtpCode,
   hashToken,
   timingSafeEqual,
   generateCsrfToken,
   type MagicLinkConfig,
 } from '@magic-pds/shared'
 
-export interface SendMagicLinkResult {
-  csrf: string
-  pollUrl: string
-}
-
 export interface VerifyResult {
   email: string
   authRequestId: string
   clientId: string | null
-  sameDevice: boolean
 }
 
 export class MagicLinkTokenService {
@@ -26,93 +20,71 @@ export class MagicLinkTokenService {
   ) {}
 
   /**
-   * Create a magic link token, store its hash in the DB, return raw token + csrf.
+   * Create an OTP code, store its hash in the DB, return the code + session ID.
    */
   create(data: {
     email: string
     authRequestId: string
     clientId: string | null
     deviceInfo: string | null
-  }): { token: string; csrf: string } {
-    const { token, tokenHash } = generateMagicLinkToken()
-    const csrf = generateCsrfToken()
+  }): { code: string; sessionId: string } {
+    const { code, codeHash } = generateOtpCode()
+    const sessionId = generateCsrfToken()
     const expiresAt = Date.now() + this.config.expiryMinutes * 60 * 1000
 
     this.db.createMagicLinkToken({
-      tokenHash,
+      tokenHash: sessionId, // repurpose token_hash as session ID
       email: data.email.toLowerCase(),
       expiresAt,
       authRequestId: data.authRequestId,
       clientId: data.clientId,
       deviceInfo: data.deviceInfo,
-      csrfToken: csrf,
+      csrfToken: sessionId, // keep csrf_token populated (same as session ID)
+      codeHash,
     })
 
-    return { token, csrf }
+    return { code, sessionId }
   }
 
   /**
-   * Build the magic link URL to send in the email.
+   * Verify an OTP code submitted by the user.
    */
-  buildUrl(token: string, csrf: string): string {
-    const url = new URL(this.config.baseUrl)
-    url.searchParams.set('token', token)
-    url.searchParams.set('csrf', csrf)
-    return url.toString()
-  }
-
-  /**
-   * Verify a magic link token. Returns the associated email and auth request,
-   * plus whether this is the same device that requested the link.
-   */
-  verify(token: string, sessionCsrf: string | undefined): VerifyResult | { error: string } {
-    const tokenHash = hashToken(token)
-    const row = this.db.getMagicLinkToken(tokenHash)
+  verifyCode(sessionId: string, submittedCode: string): VerifyResult | { error: string } {
+    const row = this.db.getMagicLinkToken(sessionId)
 
     if (!row) {
-      return { error: 'Invalid or expired link.' }
+      return { error: 'Invalid or expired code.' }
     }
 
     if (row.used) {
-      return { error: 'This link has already been used.' }
+      return { error: 'This code has already been used.' }
     }
 
     if (row.expiresAt < Date.now()) {
-      return { error: 'This link has expired. Please request a new one.' }
+      return { error: 'This code has expired. Please request a new one.' }
     }
 
     // Increment attempts and check limit
-    const attempts = this.db.incrementTokenAttempts(tokenHash)
+    const attempts = this.db.incrementTokenAttempts(sessionId)
     if (attempts > this.config.maxAttemptsPerToken) {
-      this.db.markMagicLinkTokenUsed(tokenHash)
-      return { error: 'Too many verification attempts. Please request a new link.' }
+      this.db.markMagicLinkTokenUsed(sessionId)
+      return { error: 'Too many attempts. Please request a new code.' }
+    }
+
+    // Compare submitted code hash against stored hash
+    const submittedHash = hashToken(submittedCode)
+    if (!row.codeHash || !timingSafeEqual(submittedHash, row.codeHash)) {
+      return { error: 'Incorrect code. Please try again.' }
     }
 
     // Mark as used (single-use)
-    this.db.markMagicLinkTokenUsed(tokenHash)
-
-    // Determine same-device by comparing CSRF from the session cookie
-    const sameDevice = sessionCsrf != null && timingSafeEqual(row.csrfToken, sessionCsrf)
+    this.db.markMagicLinkTokenUsed(sessionId)
 
     return {
       email: row.email,
       authRequestId: row.authRequestId,
       clientId: row.clientId,
-      sameDevice,
     }
-  }
-
-  /**
-   * Check if a magic link token associated with a CSRF has been verified.
-   * Used by the polling endpoint.
-   */
-  checkStatus(csrf: string): 'pending' | 'verified' | 'expired' {
-    const row = this.db.getMagicLinkTokenByCsrf(csrf)
-
-    if (!row) return 'expired'
-    if (row.expiresAt < Date.now()) return 'expired'
-    if (row.used) return 'verified'
-    return 'pending'
   }
 
   /**
