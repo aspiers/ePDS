@@ -26,7 +26,6 @@ export class EmailSender {
         })
 
       case 'sendgrid':
-        // SendGrid SMTP relay - requires SENDGRID_API_KEY env var
         return nodemailer.createTransport({
           host: 'smtp.sendgrid.net',
           port: 587,
@@ -38,8 +37,6 @@ export class EmailSender {
         })
 
       case 'ses':
-        // AWS SES SMTP interface - requires SES SMTP credentials
-        // Generate SMTP credentials in AWS Console > SES > SMTP Settings
         return nodemailer.createTransport({
           host: this.config.smtpHost || `email-smtp.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com`,
           port: 587,
@@ -51,7 +48,6 @@ export class EmailSender {
         })
 
       case 'postmark':
-        // Postmark SMTP - requires server API token
         return nodemailer.createTransport({
           host: 'smtp.postmarkapp.com',
           port: 587,
@@ -63,13 +59,29 @@ export class EmailSender {
         })
 
       default:
-        // For dev/testing: JSON transport (logs to console)
         logger.warn('No email provider configured, using console logging')
         return nodemailer.createTransport({ jsonTransport: true })
     }
   }
 
   async sendMagicLink(opts: {
+    to: string
+    magicLinkUrl: string
+    clientAppName: string
+    pdsName: string
+    pdsDomain: string
+    isNewUser?: boolean
+  }): Promise<void> {
+    const { to, magicLinkUrl, clientAppName, pdsName, pdsDomain, isNewUser } = opts
+
+    if (isNewUser) {
+      await this.sendWelcomeEmail({ to, magicLinkUrl, clientAppName, pdsName, pdsDomain })
+    } else {
+      await this.sendSignInEmail({ to, magicLinkUrl, clientAppName, pdsName, pdsDomain })
+    }
+  }
+
+  private async sendSignInEmail(opts: {
     to: string
     magicLinkUrl: string
     clientAppName: string
@@ -108,6 +120,59 @@ export class EmailSender {
   </p>
   <p style="color: #666; font-size: 14px;">This link expires in 10 minutes and can only be used once.</p>
   <p style="color: #666; font-size: 14px;">If you didn't request this, you can safely ignore this email.</p>
+  <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+  <p style="color: #999; font-size: 12px;">${this.escapeHtml(pdsName)} (${this.escapeHtml(pdsDomain)})</p>
+</body>
+</html>`
+
+    await this.transporter.sendMail({
+      from: `"${this.config.fromName}" <${this.config.from}>`,
+      to,
+      subject,
+      text,
+      html,
+    })
+  }
+
+  private async sendWelcomeEmail(opts: {
+    to: string
+    magicLinkUrl: string
+    clientAppName: string
+    pdsName: string
+    pdsDomain: string
+  }): Promise<void> {
+    const { to, magicLinkUrl, clientAppName, pdsName, pdsDomain } = opts
+
+    const subject = `Welcome to ${pdsName} — confirm your account`
+
+    const text = [
+      `Welcome to ${pdsName}!`,
+      '',
+      `An account is being created for you. Click the link below to confirm your email and get started:`,
+      magicLinkUrl,
+      '',
+      `This link expires in 10 minutes and can only be used once.`,
+      '',
+      `If you didn't sign up, you can safely ignore this email.`,
+      '',
+      `--`,
+      `${pdsName} (${pdsDomain})`,
+    ].join('\n')
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
+  <h2 style="color: #0f1828; margin-bottom: 8px;">Welcome to ${this.escapeHtml(pdsName)}</h2>
+  <p>An account is being created for you. Click the button below to confirm your email and get started:</p>
+  <p style="margin: 30px 0;">
+    <a href="${this.escapeHtml(magicLinkUrl)}"
+       style="background-color: #0f1828; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 500; display: inline-block;">
+      Confirm &amp; get started
+    </a>
+  </p>
+  <p style="color: #666; font-size: 14px;">This link expires in 10 minutes and can only be used once.</p>
+  <p style="color: #666; font-size: 14px;">If you didn't sign up, you can safely ignore this email.</p>
   <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
   <p style="color: #999; font-size: 12px;">${this.escapeHtml(pdsName)} (${this.escapeHtml(pdsDomain)})</p>
 </body>

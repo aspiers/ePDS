@@ -73,6 +73,9 @@ export function createSendLinkRouter(ctx: AuthServiceContext): Router {
       // Set session cookie for same-device detection
       setSessionCookie(res, csrf)
 
+      // Check if this is a new user (no existing account)
+      const isNewUser = !ctx.db.getDidByEmail(email)
+
       // Send the email
       await ctx.emailSender.sendMagicLink({
         to: email,
@@ -80,6 +83,7 @@ export function createSendLinkRouter(ctx: AuthServiceContext): Router {
         clientAppName: clientId ? await resolveClientName(clientId) : 'your application',
         pdsName: ctx.config.hostname,
         pdsDomain: ctx.config.pdsHostname,
+        isNewUser,
       })
 
       // Record the send for rate limiting

@@ -58,6 +58,7 @@ export function createAccountLoginRouter(ctx: AuthServiceContext): Router {
       await ctx.emailSender.sendMagicLink({
         to: email,
         magicLinkUrl,
+        isNewUser: !ctx.db.getDidByEmail(email),
         clientAppName: 'Account Settings',
         pdsName: ctx.config.hostname,
         pdsDomain: ctx.config.pdsHostname,
