@@ -15,9 +15,21 @@ export function createAuthorizeRouter(ctx: AuthServiceContext): Router {
     const requestUri = req.query.request_uri as string | undefined
     const clientId = req.query.client_id as string | undefined
     const prompt = req.query.prompt as string | undefined
+    const loginHint = req.query.login_hint as string | undefined
 
     if (!requestUri) {
       res.status(400).send(renderError('Missing request_uri parameter'))
+      return
+    }
+
+    // If login_hint contains an email, skip the email form and auto-submit to send-code
+    if (loginHint && loginHint.includes('@')) {
+      res.type('html').send(renderAutoSubmit({
+        email: loginHint,
+        requestUri,
+        clientId: clientId || '',
+        csrfToken: res.locals.csrfToken,
+      }))
       return
     }
 
@@ -35,6 +47,39 @@ export function createAuthorizeRouter(ctx: AuthServiceContext): Router {
   })
 
   return router
+}
+
+function renderAutoSubmit(opts: {
+  email: string
+  requestUri: string
+  clientId: string
+  csrfToken: string
+}): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Signing in...</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .container { text-align: center; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <p>Sending verification code...</p>
+  </div>
+  <form id="autoForm" method="POST" action="/auth/send-code">
+    <input type="hidden" name="csrf" value="${escapeHtml(opts.csrfToken)}">
+    <input type="hidden" name="request_uri" value="${escapeHtml(opts.requestUri)}">
+    <input type="hidden" name="client_id" value="${escapeHtml(opts.clientId)}">
+    <input type="hidden" name="email" value="${escapeHtml(opts.email)}">
+    <input type="hidden" name="is_signup" value="0">
+  </form>
+  <script>document.getElementById('autoForm').submit();</script>
+</body>
+</html>`
 }
 
 function renderEmailForm(opts: {
