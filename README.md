@@ -1,16 +1,19 @@
 # Magic PDS
 
-A passwordless [AT Protocol](https://atproto.com/) Personal Data Server (PDS) that replaces password-based authentication with email magic links.
+A passwordless [AT Protocol](https://atproto.com/) Personal Data Server (PDS) that replaces password-based authentication with email OTP codes.
+
+**Live at:** `pds.certs.network`
 
 ## Architecture
 
 ```
                   +-----------------+
                   |   OAuth Client  |
-                  | (Bluesky, etc.) |
+                  | (maearth-demo,  |
+                  |  Bluesky, etc.) |
                   +-------+---------+
                           |
-                   1. PAR  |  8. Token exchange
+                   1. PAR  |  7. Token exchange
                           v
            +-----------------------------+
            |          PDS Core           |
@@ -18,19 +21,19 @@ A passwordless [AT Protocol](https://atproto.com/) Personal Data Server (PDS) th
            |   magic-callback endpoint)  |
            +-----------------------------+
                    |             ^
-   2. AS metadata  |             | 7. Auth code issued
+   2. AS metadata  |             | 6. Auth code issued
    redirects to    |             |    via /oauth/magic-callback
    auth subdomain  v             |
            +-----------------------------+
            |        Auth Service         |
            |  /oauth/authorize           |
-           |  /auth/send-magic-link      |
-           |  /auth/verify               |
+           |  /auth/send-code            |
+           |  /auth/verify-code          |
            |  /auth/consent              |
            |  /account/* (settings)      |
            +-----------------------------+
                           |
-              3-6. Email  |  magic link flow
+              3-5. Email  |  OTP code flow
                           v
                      User's inbox
 ```
@@ -40,18 +43,20 @@ A passwordless [AT Protocol](https://atproto.com/) Personal Data Server (PDS) th
 1. **Client sends PAR** to PDS (stock AT Protocol behavior)
 2. **PDS AS metadata** points `authorization_endpoint` to the auth subdomain
 3. **Auth service** shows email input form
-4. **Magic link email** sent to user
-5. **User clicks link** — token verified, consent shown
+4. **OTP code email** sent to user (6-digit code)
+5. **User enters code** — verified, consent shown
 6. **User approves** — redirected to PDS `/oauth/magic-callback`
 7. **PDS creates account** (if new) and **issues authorization code**
 8. **Client exchanges code** for tokens (standard OAuth)
+
+Users get a random handle (e.g., `a3x9kf.pds.certs.network`) — no email-derived handles for privacy.
 
 ## Packages
 
 | Package | Description |
 |---------|-------------|
 | `@magic-pds/shared` | Database (SQLite), crypto utilities, types, logger |
-| `@magic-pds/auth-service` | Auth UI, magic link flow, account settings |
+| `@magic-pds/auth-service` | Auth UI, OTP code flow, account settings |
 | `@magic-pds/pds-core` | Wraps `@atproto/pds` with magic link integration |
 
 ## Quick Start
@@ -112,8 +117,8 @@ See [`.env.example`](.env.example) for all configuration options. Key settings:
 
 | Variable | Description |
 |----------|-------------|
-| `PDS_HOSTNAME` | Your PDS domain (e.g., `pds.example`) |
-| `AUTH_HOSTNAME` | Auth subdomain (e.g., `auth.pds.example`) |
+| `PDS_HOSTNAME` | Your PDS domain (e.g., `pds.certs.network`) |
+| `AUTH_HOSTNAME` | Auth subdomain (e.g., `auth.pds.certs.network`) |
 | `EMAIL_PROVIDER` | `smtp`, `sendgrid`, `ses`, or `postmark` |
 | `PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX` | secp256k1 private key |
 
@@ -133,13 +138,18 @@ pnpm test:watch     # watch mode
 
 ## Security
 
-- Magic link tokens: 256-bit entropy, SHA-256 hashed in DB, single-use, 10-minute expiry
+- OTP codes: 6-digit, SHA-256 hashed in DB, single-use, 10-minute expiry
 - CSRF protection on all forms
 - Rate limiting: per-email, per-IP (DB-backed), plus request-level (in-memory)
 - Anti-enumeration: same response regardless of account existence
 - Timing-safe token comparison
 - HttpOnly, SameSite cookies
 - Security headers: HSTS, CSP, X-Frame-Options, X-Content-Type-Options
+
+## Related
+
+- [maearth-demo](https://github.com/holkexyz/maearth-demo) — Demo app with OAuth login + wallet UI
+- [magic-wallet](https://github.com/holkexyz/magic-wallet) — Embedded Ethereum wallet service
 
 ## License
 
