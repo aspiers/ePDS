@@ -406,6 +406,25 @@ export class MagicPdsDb {
     ).run(email.toLowerCase(), clientId, Date.now())
   }
 
+  /**
+   * Look up a DID by email in the PDS's own account table.
+   * Used as a fallback when the email isn't tracked in magic-pds DB
+   * (e.g. accounts created before tracking or via auto-provision).
+   */
+  getDidFromPdsAccount(email: string): string | null {
+    const dbDir = path.dirname(this.db.name)
+    const pdsAccountDb = path.join(dbDir, 'account.sqlite')
+    if (!fs.existsSync(pdsAccountDb)) return null
+    try {
+      const pdsDb = new Database(pdsAccountDb, { readonly: true })
+      const row = pdsDb.prepare('SELECT did FROM account WHERE email = ?').get(email.toLowerCase()) as { did: string } | undefined
+      pdsDb.close()
+      return row?.did || null
+    } catch {
+      return null
+    }
+  }
+
   close(): void {
     this.db.close()
   }

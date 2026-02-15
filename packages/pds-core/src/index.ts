@@ -95,6 +95,15 @@ async function main() {
         // Check if this is a backup email (recovery flow)
         did = magicDb.getDidByBackupEmail(email)
       }
+      if (!did) {
+        // Check if account exists in PDS but not yet tracked in magic-pds DB
+        // (e.g. accounts created before tracking, or via auto-provision)
+        did = magicDb.getDidFromPdsAccount(email) || undefined
+        if (did) {
+          magicDb.setAccountEmail(email, did)
+          logger.info({ did, email }, 'Synced existing PDS account to magic-pds DB')
+        }
+      }
       let account: any // Account type from @atproto/oauth-provider-api
 
       if (did) {
