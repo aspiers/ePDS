@@ -144,6 +144,17 @@ export class MagicPdsDb {
           );
         `)
       },
+
+      // v4: Per-email OTP failure tracking for brute-force lockout
+      () => {
+        this.db.exec(`
+          CREATE TABLE IF NOT EXISTS otp_failed_attempts (
+            email      TEXT NOT NULL,
+            failed_at  INTEGER NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS idx_ofa_email_time ON otp_failed_attempts(email, failed_at);
+        `)
+      },
     ]
 
     for (let i = currentVersion; i < migrations.length; i++) {
@@ -298,6 +309,35 @@ export class MagicPdsDb {
     const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000
     const result = this.db.prepare(
       `DELETE FROM email_rate_limit WHERE sent_at < ?`
+    ).run(oneDayAgo)
+    return result.changes
+  }
+
+  // ── Per-email OTP failure lockout ──
+
+  /** Record a failed OTP verification attempt for an email. */
+  recordOtpFailure(email: string): void {
+    this.db.prepare(
+      `INSERT INTO otp_failed_attempts (email, failed_at) VALUES (?, ?)`
+    ).run(email.toLowerCase(), Date.now())
+  }
+
+  /**
+   * Count OTP failures for an email within the given time window (ms).
+   * Used to enforce per-email lockout independent of per-token attempt limits.
+   */
+  getOtpFailureCount(email: string, sinceMs: number): number {
+    const row = this.db.prepare(
+      `SELECT COUNT(*) as count FROM otp_failed_attempts WHERE email = ? AND failed_at > ?`
+    ).get(email.toLowerCase(), Date.now() - sinceMs) as { count: number }
+    return row.count
+  }
+
+  /** Remove old OTP failure records (call during periodic cleanup). */
+  cleanupOldOtpFailures(): number {
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000
+    const result = this.db.prepare(
+      `DELETE FROM otp_failed_attempts WHERE failed_at < ?`
     ).run(oneDayAgo)
     return result.changes
   }

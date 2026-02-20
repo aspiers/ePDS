@@ -253,7 +253,7 @@ export class EmailSender {
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
   <p>Your sign-in code for <strong>${escapeHtml(clientAppName)}</strong>:</p>
   <p style="margin: 30px 0; text-align: center;">
-    <span style="font-size: 36px; font-family: 'SF Mono', 'Menlo', 'Consolas', monospace; letter-spacing: 8px; background: #f5f5f5; padding: 16px 24px; border-radius: 8px; display: inline-block; font-weight: 600; color: #0f1828;">
+    <span style="font-size: 32px; font-family: 'SF Mono', 'Menlo', 'Consolas', monospace; letter-spacing: 6px; background: #f5f5f5; padding: 16px 24px; border-radius: 8px; display: inline-block; font-weight: 600; color: #0f1828;">
       ${escapeHtml(code)}
     </span>
   </p>
@@ -307,7 +307,7 @@ export class EmailSender {
   <h2 style="color: #0f1828; margin-bottom: 8px;">Welcome to ${escapeHtml(pdsName)}</h2>
   <p>Enter this code to confirm your email and create your account:</p>
   <p style="margin: 30px 0; text-align: center;">
-    <span style="font-size: 36px; font-family: 'SF Mono', 'Menlo', 'Consolas', monospace; letter-spacing: 8px; background: #f5f5f5; padding: 16px 24px; border-radius: 8px; display: inline-block; font-weight: 600; color: #0f1828;">
+    <span style="font-size: 32px; font-family: 'SF Mono', 'Menlo', 'Consolas', monospace; letter-spacing: 6px; background: #f5f5f5; padding: 16px 24px; border-radius: 8px; display: inline-block; font-weight: 600; color: #0f1828;">
       ${escapeHtml(code)}
     </span>
   </p>

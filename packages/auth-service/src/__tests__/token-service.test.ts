@@ -25,7 +25,7 @@ describe('MagicLinkTokenService (OTP)', () => {
   })
 
   describe('create', () => {
-    it('returns a 6-digit code and session ID', () => {
+    it('returns an 8-digit code and session ID', () => {
       const { code, sessionId } = service.create({
         email: 'test@example.com',
         authRequestId: 'req:123',
@@ -33,7 +33,7 @@ describe('MagicLinkTokenService (OTP)', () => {
         deviceInfo: null,
       })
 
-      expect(code).toMatch(/^\d{6}$/)
+      expect(code).toMatch(/^\d{8}$/)
       expect(sessionId).toBeTruthy()
       expect(sessionId.length).toBe(64) // 32 bytes hex
     })
@@ -65,7 +65,7 @@ describe('MagicLinkTokenService (OTP)', () => {
         deviceInfo: null,
       })
 
-      const result = service.verifyCode(sessionId, '000000')
+      const result = service.verifyCode(sessionId, '00000000')
       expect('error' in result).toBe(true)
     })
 
@@ -91,16 +91,44 @@ describe('MagicLinkTokenService (OTP)', () => {
       })
 
       for (let i = 0; i < 6; i++) {
-        service.verifyCode(sessionId, '999999')
+        service.verifyCode(sessionId, '99999999')
       }
 
-      const result = service.verifyCode(sessionId, '999999')
+      const result = service.verifyCode(sessionId, '99999999')
       expect('error' in result).toBe(true)
     })
 
     it('rejects invalid session ID', () => {
-      const result = service.verifyCode('nonexistent', '123456')
+      const result = service.verifyCode('nonexistent', '12345678')
       expect('error' in result).toBe(true)
+    })
+
+    it('enforces per-email lockout after 15 total failures', () => {
+      const email = 'lockout@example.com'
+
+      // Create 15 separate sessions and fail once each to trigger the lockout
+      for (let i = 0; i < 15; i++) {
+        const { sessionId } = service.create({
+          email,
+          authRequestId: `req:${i}`,
+          clientId: null,
+          deviceInfo: null,
+        })
+        service.verifyCode(sessionId, '00000000') // wrong code → records failure
+      }
+
+      // 16th attempt: should be blocked by per-email lockout
+      const { sessionId } = service.create({
+        email,
+        authRequestId: 'req:final',
+        clientId: null,
+        deviceInfo: null,
+      })
+      const result = service.verifyCode(sessionId, '00000000')
+      expect('error' in result).toBe(true)
+      if ('error' in result) {
+        expect(result.error).toContain('Too many failed attempts')
+      }
     })
   })
 

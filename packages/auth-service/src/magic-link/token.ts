@@ -7,6 +7,9 @@ import {
   type MagicLinkConfig,
 } from '@magic-pds/shared'
 
+/** Maximum total OTP failures per email in a 1-hour window before lockout. */
+const OTP_LOCKOUT_THRESHOLD = 15
+
 export interface VerifyResult {
   email: string
   authRequestId: string
@@ -64,7 +67,15 @@ export class MagicLinkTokenService {
       return { error: 'This code has expired. Please request a new one.' }
     }
 
-    // Increment attempts and check limit
+    // Per-email lockout: reject if this email has too many recent failures across
+    // all tokens (separate from the per-token attempt limit below).
+    const ONE_HOUR_MS = 60 * 60 * 1000
+    const recentFailures = this.db.getOtpFailureCount(row.email, ONE_HOUR_MS)
+    if (recentFailures >= OTP_LOCKOUT_THRESHOLD) {
+      return { error: 'Too many failed attempts. Please try again later.' }
+    }
+
+    // Increment attempts and check per-token limit
     const attempts = this.db.incrementTokenAttempts(sessionId)
     if (attempts > this.config.maxAttemptsPerToken) {
       this.db.markMagicLinkTokenUsed(sessionId)
@@ -74,6 +85,8 @@ export class MagicLinkTokenService {
     // Compare submitted code hash against stored hash
     const submittedHash = hashToken(submittedCode)
     if (!row.codeHash || !timingSafeEqual(submittedHash, row.codeHash)) {
+      // Record per-email failure for lockout tracking
+      this.db.recordOtpFailure(row.email)
       return { error: 'Incorrect code. Please try again.' }
     }
 
