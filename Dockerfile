@@ -2,7 +2,7 @@
 
 # -- Base --
 FROM node:20-alpine AS base
-RUN corepack enable && corepack prepare pnpm@8.15.9 --activate
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 RUN addgroup -g 1001 appuser && adduser -u 1001 -G appuser -D appuser
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
@@ -22,7 +22,6 @@ RUN pnpm build
 
 # -- PDS Core --
 FROM node:20-alpine AS pds-core
-RUN corepack enable && corepack prepare pnpm@8.15.9 --activate
 RUN addgroup -g 1001 appuser && adduser -u 1001 -G appuser -D appuser
 RUN apk add --no-cache wget
 WORKDIR /app
@@ -43,7 +42,6 @@ CMD ["node", "packages/pds-core/dist/index.js"]
 
 # -- Auth Service --
 FROM node:20-alpine AS auth-service
-RUN corepack enable && corepack prepare pnpm@8.15.9 --activate
 RUN addgroup -g 1001 appuser && adduser -u 1001 -G appuser -D appuser
 RUN apk add --no-cache wget
 WORKDIR /app

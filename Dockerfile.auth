@@ -5,7 +5,7 @@
 
 # -- Base --
 FROM node:20-alpine AS base
-RUN corepack enable && corepack prepare pnpm@8.15.9 --activate
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 RUN addgroup -g 1001 appuser && adduser -u 1001 -G appuser -D appuser
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
@@ -25,7 +25,6 @@ RUN pnpm build
 
 # -- Auth Service --
 FROM node:20-alpine
-RUN corepack enable && corepack prepare pnpm@8.15.9 --activate
 RUN addgroup -g 1001 appuser && adduser -u 1001 -G appuser -D appuser
 RUN apk add --no-cache wget
 WORKDIR /app
