@@ -26,7 +26,7 @@ RUN pnpm build
 # -- PDS Core --
 FROM node:20-alpine
 RUN addgroup -g 1001 appuser && adduser -u 1001 -G appuser -D appuser
-RUN apk add --no-cache wget
+RUN apk add --no-cache wget su-exec
 WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages/shared/node_modules ./packages/shared/node_modules
@@ -37,7 +37,8 @@ COPY --from=build /app/packages/pds-core/dist ./packages/pds-core/dist
 COPY --from=build /app/packages/pds-core/package.json ./packages/pds-core/
 COPY --from=build /app/package.json ./
 COPY --from=build /app/pnpm-workspace.yaml ./
-RUN mkdir -p /data && chown appuser:appuser /data
-ENV PDS_DATA_DIR=/data
-USER appuser
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+ENV PDS_DATA_DIRECTORY=/data
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "packages/pds-core/dist/index.js"]

@@ -26,7 +26,7 @@ RUN pnpm build
 # -- Auth Service --
 FROM node:20-alpine
 RUN addgroup -g 1001 appuser && adduser -u 1001 -G appuser -D appuser
-RUN apk add --no-cache wget
+RUN apk add --no-cache wget su-exec
 WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages/shared/node_modules ./packages/shared/node_modules
@@ -38,7 +38,8 @@ COPY --from=build /app/packages/auth-service/package.json ./packages/auth-servic
 COPY packages/auth-service/public ./packages/auth-service/public
 COPY --from=build /app/package.json ./
 COPY --from=build /app/pnpm-workspace.yaml ./
-RUN mkdir -p /data && chown appuser:appuser /data
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 ENV DB_LOCATION=/data/magic-pds.sqlite
-USER appuser
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "packages/auth-service/dist/index.js"]

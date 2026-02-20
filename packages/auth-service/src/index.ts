@@ -2,6 +2,8 @@ import { createLogger } from '@magic-pds/shared'
 import express from 'express'
 import cookieParser from 'cookie-parser'
 import * as path from 'node:path'
+import { fileURLToPath } from 'node:url'
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 import { toNodeHandler } from 'better-auth/node'
 import { AuthServiceContext, type AuthServiceConfig } from './context.js'
 import { createBetterAuth } from './better-auth.js'
