@@ -16,7 +16,6 @@
 import * as dotenv from 'dotenv'
 dotenv.config()
 
-import * as crypto from 'node:crypto'
 import * as http from 'node:http'
 import { PDS, envToCfg, envToSecrets, readEnv } from '@atproto/pds'
 import { MagicPdsDb, generateRandomHandle, createLogger, verifyCallback } from '@magic-pds/shared'
@@ -156,8 +155,11 @@ async function main() {
                 locale: 'en',
                 handle,
                 email,
-                // Password required by schema but never used for login
-                password: crypto.randomBytes(64).toString('hex'),
+                // Passwordless: the PDS accountManager accepts password: undefined,
+                // creating a passwordless account that can't be used with createSession.
+                // The SignUpInput type requires password, but we bypass it here since
+                // we call the method directly (no schema validation at the call site).
+                password: undefined as unknown as string,
               },
             )
             magicDb.setAccountEmail(email, account.sub)
@@ -300,19 +302,24 @@ async function main() {
   }
 
   // =========================================================================
-  // Health check
+  // Internal endpoints
   // =========================================================================
 
-  // Internal endpoint for auth service to check if an email has an existing account
-  pds.app.get('/_magic/check-email', (req, res) => {
-    const email = (req.query.email as string || '').trim().toLowerCase()
-    if (!email) {
-      res.status(400).json({ error: 'email required' })
+  // Protected internal endpoint for auth service to look up an account by email.
+  // Replaces the old unauthenticated /_magic/check-email to prevent email enumeration.
+  // Queries account.sqlite directly via the PDS accountManager — no mirror table needed.
+  pds.app.get('/_internal/account-by-email', async (req, res) => {
+    if (req.headers['x-internal-secret'] !== process.env.MAGIC_INTERNAL_SECRET) {
+      res.status(401).json({ error: 'Unauthorized' })
       return
     }
-    let did = magicDb.getDidByEmail(email)
-    if (!did) did = magicDb.getDidByBackupEmail(email)
-    res.json({ exists: !!did, did: did || undefined })
+    const email = (req.query.email as string || '').trim().toLowerCase()
+    if (!email) {
+      res.status(400).json({ error: 'Missing email' })
+      return
+    }
+    const account = await pds.ctx.accountManager.getAccountByEmail(email)
+    res.json({ did: account?.did ?? null })
   })
 
   pds.app.get('/health', (_req, res) => {

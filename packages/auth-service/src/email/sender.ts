@@ -1,7 +1,6 @@
 import * as nodemailer from 'nodemailer'
 import { createLogger } from '@magic-pds/shared'
-import type { Transporter } from 'nodemailer'
-import type SMTPTransport from 'nodemailer/lib/smtp-transport'
+import type { Transporter, SentMessageInfo } from 'nodemailer'
 import type { EmailConfig } from '@magic-pds/shared'
 import { escapeHtml } from '@magic-pds/shared'
 import { resolveClientMetadata } from '../lib/client-metadata.js'
@@ -99,13 +98,13 @@ function renderSubjectTemplate(template: string, vars: Record<string, string>): 
 }
 
 export class EmailSender {
-  private transporter: Transporter<SMTPTransport.SentMessageInfo>
+  private transporter: Transporter<SentMessageInfo>
 
   constructor(private readonly config: EmailConfig) {
     this.transporter = this.createTransporter()
   }
 
-  private createTransporter(): Transporter<SMTPTransport.SentMessageInfo> {
+  private createTransporter(): Transporter<SentMessageInfo> {
     switch (this.config.provider) {
       case 'smtp':
         return nodemailer.createTransport({

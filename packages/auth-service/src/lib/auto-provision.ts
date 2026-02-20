@@ -1,4 +1,3 @@
-import * as crypto from 'node:crypto'
 import type { AuthServiceContext } from '../context.js'
 import { createLogger, generateRandomHandle } from '@magic-pds/shared'
 
@@ -6,7 +5,7 @@ const logger = createLogger('auth:auto-provision')
 
 /**
  * Auto-provision a new PDS account for the given email.
- * Generates a random handle and password, calls the PDS createAccount API,
+ * Generates a random handle, calls the PDS createAccount API (passwordless),
  * and registers the email->DID mapping in the auth DB.
  *
  * Returns the new DID on success, or null on failure.
@@ -17,13 +16,13 @@ export async function autoProvisionAccount(ctx: AuthServiceContext, email: strin
 
   const handle = generateRandomHandle(ctx.config.pdsHostname)
 
-  const password = crypto.randomBytes(32).toString('hex')
-
   try {
     const res = await fetch(`${pdsUrl}/xrpc/com.atproto.server.createAccount`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, handle, password }),
+      // No password — creates a passwordless account that cannot be used with
+      // createSession. The XRPC lexicon accepts password as optional.
+      body: JSON.stringify({ email, handle }),
     })
 
     if (!res.ok) {

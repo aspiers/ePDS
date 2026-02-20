@@ -2,7 +2,9 @@ import { createLogger } from '@magic-pds/shared'
 import express from 'express'
 import cookieParser from 'cookie-parser'
 import * as path from 'node:path'
+import { toNodeHandler } from 'better-auth/node'
 import { AuthServiceContext, type AuthServiceConfig } from './context.js'
+import { createBetterAuth } from './better-auth.js'
 import { csrfProtection } from './middleware/csrf.js'
 import { requestRateLimit } from './middleware/rate-limit.js'
 import { createAuthorizeRouter } from './routes/authorize.js'
@@ -19,6 +21,11 @@ const logger = createLogger('auth-service')
 export function createAuthService(config: AuthServiceConfig): { app: express.Express; ctx: AuthServiceContext } {
   const ctx = new AuthServiceContext(config)
   const app = express()
+
+  // Mount better-auth BEFORE express.json() so it can parse its own request bodies.
+  // All better-auth endpoints live under /api/auth/*.
+  const betterAuthInstance = createBetterAuth(ctx.emailSender)
+  app.all('/api/auth/*', toNodeHandler(betterAuthInstance))
 
   // Middleware
   app.set('trust proxy', 1)
