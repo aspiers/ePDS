@@ -260,10 +260,10 @@ function renderLoginPage(opts: {
       // Send OTP via better-auth
       async function sendOtp(email) {
         try {
-          var res = await fetch(authBasePath + '/sign-in/email-otp/send-otp', {
+          var res = await fetch(authBasePath + '/email-otp/send-verification-otp', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: email }),
+            body: JSON.stringify({ email: email, type: 'sign-in' }),
           });
           if (!res.ok) {
             var data = await res.json().catch(function() { return {}; });
@@ -278,7 +278,7 @@ function renderLoginPage(opts: {
       // Verify OTP via better-auth and redirect
       async function verifyOtp(email, otp) {
         try {
-          var res = await fetch(authBasePath + '/sign-in/email-otp/verify-otp', {
+          var res = await fetch(authBasePath + '/sign-in/email-otp', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: email, otp: otp }),
