@@ -95,23 +95,24 @@ export function createCompleteRouter(ctx: AuthServiceContext, auth: any): Router
     const clientId = flow.clientId ?? ''
     const needsConsent = !isNewAccount && clientId && !ctx.db.hasClientLogin(email, clientId)
 
-    // Step 5: Record client login before redirecting
+    if (needsConsent) {
+      // Step 5a: Redirect to consent screen, passing flow_id so consent can
+      // look up request_uri and perform cleanup itself.
+      // Do NOT delete auth_flow or clear cookie here — consent does it.
+      const consentUrl = new URL('/auth/consent', `https://${ctx.config.hostname}`)
+      consentUrl.searchParams.set('flow_id', flowId)
+      consentUrl.searchParams.set('email', email)
+      consentUrl.searchParams.set('new', '0')
+      res.redirect(303, consentUrl.pathname + consentUrl.search)
+      return
+    }
+
+    // Step 5: Record client login before redirecting (no consent needed)
     ctx.db.recordClientLogin(email, clientId || 'better-auth')
 
     // Cleanup: remove auth_flow row and cookie
     ctx.db.deleteAuthFlow(flowId)
     res.clearCookie(AUTH_FLOW_COOKIE)
-
-    if (needsConsent) {
-      // Step 5a: Redirect to consent screen with flow metadata in query params
-      const consentUrl = new URL('/auth/consent', `https://${ctx.config.hostname}`)
-      consentUrl.searchParams.set('request_uri', flow.requestUri)
-      consentUrl.searchParams.set('email', email)
-      consentUrl.searchParams.set('new', '0')
-      if (clientId) consentUrl.searchParams.set('client_id', clientId)
-      res.redirect(303, consentUrl.pathname + consentUrl.search)
-      return
-    }
 
     // Step 5b: Build HMAC-signed redirect to pds-core /oauth/magic-callback
     const callbackParams = {

@@ -2,17 +2,58 @@ import { Router, type Request, type Response } from 'express'
 import type { AuthServiceContext } from '../context.js'
 import { resolveClientName } from '../lib/client-metadata.js'
 import { escapeHtml, signCallback } from '@magic-pds/shared'
+import { createLogger } from '@magic-pds/shared'
+
+const logger = createLogger('auth:consent')
+
+const AUTH_FLOW_COOKIE = 'magic_auth_flow'
 
 /**
  * GET /auth/consent
  * POST /auth/consent
  *
  * Shows the consent screen and handles the approve/deny decision.
+ *
+ * Supports two modes:
+ * 1. flow_id mode (new): reads request_uri/client_id from auth_flow table.
+ *    The complete.ts bridge passes flow_id when consent is needed so that
+ *    we can maintain a single source of truth and avoid long URLs.
+ * 2. Legacy mode: reads request_uri/email/client_id from query params directly
+ *    (used by the old magic-link OTP path which is still active).
  */
 export function createConsentRouter(ctx: AuthServiceContext): Router {
   const router = Router()
 
   router.get('/auth/consent', async (req: Request, res: Response) => {
+    const flowId = req.query.flow_id as string | undefined
+
+    if (flowId) {
+      // New mode: look up auth_flow by flow_id
+      const flow = ctx.db.getAuthFlow(flowId)
+      if (!flow) {
+        logger.warn({ flowId }, 'auth_flow not found or expired on consent GET')
+        res.status(400).send('<p>Authentication session expired. Please try again.</p>')
+        return
+      }
+
+      const email = req.query.email as string | undefined
+      const isNew = req.query.new === '1'
+      const clientId = flow.clientId ?? ''
+      const clientName = clientId ? await resolveClientName(clientId) : 'the application'
+
+      res.type('html').send(renderConsent({
+        flowId,
+        requestUri: flow.requestUri,
+        email: email ?? '',
+        isNew,
+        clientId,
+        clientName,
+        csrfToken: res.locals.csrfToken,
+      }))
+      return
+    }
+
+    // Legacy mode: request_uri passed directly in query params
     const requestUri = req.query.request_uri as string
     const email = req.query.email as string
     const isNew = req.query.new === '1'
@@ -26,6 +67,7 @@ export function createConsentRouter(ctx: AuthServiceContext): Router {
     const clientName = clientId ? await resolveClientName(clientId) : 'the application'
 
     res.type('html').send(renderConsent({
+      flowId: undefined,
       requestUri,
       email,
       isNew,
@@ -36,31 +78,62 @@ export function createConsentRouter(ctx: AuthServiceContext): Router {
   })
 
   router.post('/auth/consent', async (req: Request, res: Response) => {
-    const requestUri = req.body.request_uri as string
-    const email = req.body.email as string
-    const isNew = req.body.is_new === '1'
+    const flowId = req.body.flow_id as string | undefined
     const action = req.body.action as string
 
-    if (!requestUri || !email) {
-      res.status(400).send('<p>Missing parameters</p>')
-      return
+    let requestUri: string
+    let email: string
+    let isNew: boolean
+    let clientId: string
+
+    if (flowId) {
+      // New mode: look up auth_flow by flow_id
+      const flow = ctx.db.getAuthFlow(flowId)
+      if (!flow) {
+        logger.warn({ flowId }, 'auth_flow not found or expired on consent POST')
+        res.status(400).send('<p>Authentication session expired. Please try again.</p>')
+        return
+      }
+
+      requestUri = flow.requestUri
+      email = (req.body.email as string || '').trim().toLowerCase()
+      isNew = req.body.is_new === '1'
+      clientId = flow.clientId ?? ''
+
+      if (!email) {
+        res.status(400).send('<p>Missing email parameter</p>')
+        return
+      }
+
+      // Cleanup the auth_flow row and cookie after reading it
+      ctx.db.deleteAuthFlow(flowId)
+      res.clearCookie(AUTH_FLOW_COOKIE)
+    } else {
+      // Legacy mode: direct params
+      requestUri = req.body.request_uri as string
+      email = req.body.email as string
+      isNew = req.body.is_new === '1'
+      clientId = (req.body.client_id as string) || ''
+
+      if (!requestUri || !email) {
+        res.status(400).send('<p>Missing parameters</p>')
+        return
+      }
     }
 
     if (action === 'deny') {
-      // Redirect back to client with access_denied error
-      // The PDS oauth provider will handle this via the request_uri
+      // Redirect back to client with access_denied error via the PDS oauth provider
       res.redirect(303, `${ctx.config.pdsPublicUrl}/oauth/authorize?request_uri=${encodeURIComponent(requestUri)}&error=access_denied`)
       return
     }
 
     // action === 'approve'
-    // At this point we need to:
-    // 1. Create the account if new
-    // 2. Signal to the PDS oauth-provider that the user is authenticated
-    // 3. The PDS will issue the authorization code and redirect back to the client
+    // Record first-time consent for this email+client combination
+    if (clientId) {
+      ctx.db.recordClientLogin(email, clientId)
+    }
 
-    // Redirect to the PDS with HMAC-signed auth info so pds-core can verify
-    // the redirect was produced by a legitimate auth-service flow.
+    // Build HMAC-signed redirect URL to pds-core /oauth/magic-callback
     const callbackParams = {
       request_uri: requestUri,
       email,
@@ -70,6 +143,7 @@ export function createConsentRouter(ctx: AuthServiceContext): Router {
     const { sig, ts } = signCallback(callbackParams, ctx.config.magicCallbackSecret)
     const params = new URLSearchParams({ ...callbackParams, ts, sig })
 
+    logger.info({ email, isNew, clientId }, 'Consent approved, redirecting to magic-callback')
     res.redirect(303, `${ctx.config.pdsPublicUrl}/oauth/magic-callback?${params.toString()}`)
   })
 
@@ -77,6 +151,7 @@ export function createConsentRouter(ctx: AuthServiceContext): Router {
 }
 
 function renderConsent(opts: {
+  flowId: string | undefined
   requestUri: string
   email: string
   isNew: boolean
@@ -85,6 +160,16 @@ function renderConsent(opts: {
   csrfToken: string
 }): string {
   const title = opts.isNew ? 'Create Account & Authorize' : 'Authorize Application'
+
+  // Hidden fields: use flow_id if available, otherwise fall back to direct params
+  const hiddenFields = opts.flowId
+    ? `<input type="hidden" name="flow_id" value="${escapeHtml(opts.flowId)}">
+      <input type="hidden" name="email" value="${escapeHtml(opts.email)}">
+      <input type="hidden" name="is_new" value="${opts.isNew ? '1' : '0'}">`
+    : `<input type="hidden" name="request_uri" value="${escapeHtml(opts.requestUri)}">
+      <input type="hidden" name="email" value="${escapeHtml(opts.email)}">
+      <input type="hidden" name="client_id" value="${escapeHtml(opts.clientId)}">
+      <input type="hidden" name="is_new" value="${opts.isNew ? '1' : '0'}">`
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -129,9 +214,7 @@ function renderConsent(opts: {
 
     <form method="POST" action="/auth/consent">
       <input type="hidden" name="csrf" value="${escapeHtml(opts.csrfToken)}">
-      <input type="hidden" name="request_uri" value="${escapeHtml(opts.requestUri)}">
-      <input type="hidden" name="email" value="${escapeHtml(opts.email)}">
-      <input type="hidden" name="is_new" value="${opts.isNew ? '1' : '0'}">
+      ${hiddenFields}
       <div class="actions">
         <button type="submit" name="action" value="deny" class="btn btn-deny">Deny</button>
         <button type="submit" name="action" value="approve" class="btn btn-approve">Approve</button>
@@ -141,4 +224,3 @@ function renderConsent(opts: {
 </body>
 </html>`
 }
-
