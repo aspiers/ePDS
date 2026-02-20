@@ -1,9 +1,9 @@
 export { MagicPdsDb } from './db.js'
 export type {
   MagicLinkTokenRow,
-  AccountEmailRow,
   BackupEmailRow,
   EmailRateLimitRow,
+  AuthFlowRow,
 } from './db.js'
 export {
   generateMagicLinkToken,

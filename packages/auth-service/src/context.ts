@@ -51,9 +51,9 @@ export class AuthServiceContext {
       if (cleaned > 0) {
         logger.debug({ cleaned }, 'Cleaned up expired magic link tokens')
       }
-      const sessions = this.db.cleanupExpiredSessions()
-      if (sessions > 0) {
-        logger.debug({ sessions }, 'Cleaned up expired account sessions')
+      const flows = this.db.cleanupExpiredAuthFlows()
+      if (flows > 0) {
+        logger.debug({ flows }, 'Cleaned up expired auth flows')
       }
       this.db.cleanupOldRateLimitEntries()
       this.db.cleanupOldOtpFailures()

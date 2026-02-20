@@ -14,7 +14,7 @@ import { createConsentRouter } from './routes/consent.js'
 import { createRecoveryRouter } from './routes/recovery.js'
 import { createAccountLoginRouter } from './routes/account-login.js'
 import { createAccountSettingsRouter } from './routes/account-settings.js'
-import { accountAuth } from './middleware/account-auth.js'
+import { createCompleteRouter } from './routes/complete.js'
 
 const logger = createLogger('auth-service')
 
@@ -65,17 +65,15 @@ export function createAuthService(config: AuthServiceConfig): { app: express.Exp
     next()
   })
 
-  // Account auth middleware (populates req.accountSession if logged in)
-  app.use(accountAuth(ctx))
-
   // Routes
   app.use(createAuthorizeRouter(ctx))
   app.use(createSendCodeRouter(ctx))
   app.use(createVerifyCodeRouter(ctx))
   app.use(createConsentRouter(ctx))
   app.use(createRecoveryRouter(ctx))
-  app.use(createAccountLoginRouter(ctx))
-  app.use(createAccountSettingsRouter(ctx))
+  app.use(createAccountLoginRouter(betterAuthInstance))
+  app.use(createAccountSettingsRouter(ctx, betterAuthInstance))
+  app.use(createCompleteRouter(ctx, betterAuthInstance))
 
   // Health check
   // Metrics endpoint (protect with admin auth in production)

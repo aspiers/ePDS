@@ -1,27 +1,44 @@
+/**
+ * Account Settings Login via better-auth email OTP
+ *
+ * The login page collects the user's email and then delegates to better-auth's
+ * email OTP endpoints:
+ *   - POST /api/auth/email-otp/send-verification-otp  (sends OTP)
+ *   - POST /api/auth/sign-in/email-otp               (verifies OTP, creates session)
+ *
+ * After successful sign-in, better-auth sets its session cookie and better-auth
+ * returns a redirect to /account (the callbackURL we specify in the form).
+ *
+ * Note: The actual OTP send/verify calls are made from the browser (via fetch or form
+ * submit) directly to the better-auth API endpoints. This file provides the HTML
+ * forms that orchestrate those calls.
+ */
 import { Router, type Request, type Response } from 'express'
-import type { AuthServiceContext } from '../context.js'
-import { createLogger } from '@magic-pds/shared'
-import { escapeHtml, maskEmail } from '@magic-pds/shared'
-import { setAccountSessionCookie, type AuthenticatedRequest } from '../middleware/account-auth.js'
-import { autoProvisionAccount } from '../lib/auto-provision.js'
-import * as crypto from 'node:crypto'
+import { escapeHtml, maskEmail, createLogger } from '@magic-pds/shared'
+import { fromNodeHeaders } from 'better-auth/node'
 
 const logger = createLogger('auth:account-login')
 
-export function createAccountLoginRouter(ctx: AuthServiceContext): Router {
+export function createAccountLoginRouter(auth: any): Router {
   const router = Router()
 
-  // GET /account/login - show email form
-  router.get('/account/login', (req: AuthenticatedRequest, res: Response) => {
-    if (req.accountSession) {
-      res.redirect(303, '/account')
-      return
-    }
+  // GET /account/login - show email form (or redirect if already logged in)
+  router.get('/account/login', async (req: Request, res: Response) => {
+    try {
+      const session = await auth.api.getSession({
+        headers: fromNodeHeaders(req.headers),
+      })
+      if (session?.user?.email) {
+        res.redirect(303, '/account')
+        return
+      }
+    } catch { /* not logged in, continue */ }
+
     res.type('html').send(renderLoginForm({ csrfToken: res.locals.csrfToken }))
   })
 
-  // POST /account/login - send OTP code, render code input form
-  router.post('/account/login', async (req: Request, res: Response) => {
+  // POST /account/send-otp - send OTP via better-auth, show OTP form
+  router.post('/account/send-otp', async (req: Request, res: Response) => {
     const email = (req.body.email as string || '').trim().toLowerCase()
 
     if (!email) {
@@ -29,135 +46,62 @@ export function createAccountLoginRouter(ctx: AuthServiceContext): Router {
       return
     }
 
-    const ip = req.ip || req.socket.remoteAddress || null
-    const rateLimitError = ctx.rateLimiter.check(email, ip)
-    if (rateLimitError) {
-      res.send(renderOtpForm({ email, sessionId: '', csrfToken: res.locals.csrfToken, error: 'Too many requests. Please wait a moment.' }))
+    try {
+      // Call better-auth's email OTP send endpoint
+      await auth.api.sendVerificationOTP({
+        body: { email, type: 'sign-in' },
+      })
+    } catch (err) {
+      logger.error({ err, email }, 'Failed to send OTP via better-auth')
+      // Anti-enumeration: show OTP form even on failure
+    }
+
+    res.type('html').send(renderOtpForm({ email, csrfToken: res.locals.csrfToken }))
+  })
+
+  // POST /account/verify-otp - verify OTP via better-auth, redirect to /account
+  router.post('/account/verify-otp', async (req: Request, res: Response) => {
+    const email = (req.body.email as string || '').trim().toLowerCase()
+    const otp = (req.body.otp as string || '').trim()
+
+    if (!email || !otp) {
+      res.status(400).send(renderOtpForm({ email, csrfToken: res.locals.csrfToken, error: 'Email and code are required.' }))
       return
     }
 
     try {
-      const deviceInfo = req.headers['user-agent'] || null
-      const authRequestId = 'account-settings:' + crypto.randomBytes(16).toString('hex')
-      const { code, sessionId } = ctx.tokenService.create({
-        email,
-        authRequestId,
-        clientId: null,
-        deviceInfo,
+      // Call better-auth's sign-in endpoint — it sets the session cookie and returns JSON
+      const response = await auth.api.signInEmailOTP({
+        body: { email, otp },
+        // We don't pass headers here since we want better-auth to create a new session
+        // The session cookie will be set on the response
+        asResponse: true,
       })
 
-      const isNewUser = !ctx.db.hasClientLogin(email, 'account-settings')
-
-      await ctx.emailSender.sendOtpCode({
-        to: email,
-        code,
-        clientAppName: 'Account Settings',
-        pdsName: ctx.config.hostname,
-        pdsDomain: ctx.config.pdsHostname,
-        isNewUser,
-      })
-
-      ctx.rateLimiter.record(email, ip)
-      res.send(renderOtpForm({ email, sessionId, csrfToken: res.locals.csrfToken }))
-    } catch (err) {
-      logger.error({ err }, 'Failed to send account login OTP')
-      res.status(500).send(renderOtpForm({ email, sessionId: '', csrfToken: res.locals.csrfToken, error: 'Failed to send code.' }))
-    }
-  })
-
-  // POST /account/verify-code - verify OTP and create account session
-  router.post('/account/verify-code', async (req: Request, res: Response) => {
-    const sessionId = req.body.session_id as string
-    const code = (req.body.code as string || '').trim()
-    const email = (req.body.email as string || '').trim().toLowerCase()
-
-    if (!sessionId || !code || !email) {
-      res.status(400).send('<p>Missing required fields.</p>')
-      return
-    }
-
-    const result = ctx.tokenService.verifyCode(sessionId, code)
-
-    if ('error' in result) {
-      res.send(renderOtpForm({
-        email,
-        sessionId,
-        csrfToken: res.locals.csrfToken,
-        error: result.error,
-      }))
-      return
-    }
-
-    // Look up or auto-provision account
-    let did = ctx.db.getDidByEmail(result.email)
-    if (!did) did = ctx.db.getDidByBackupEmail(result.email)
-
-    if (!did) {
-      // Check PDS (source of truth) for existing account via the protected internal endpoint
-      try {
-        const pdsUrl = process.env.PDS_INTERNAL_URL || ctx.config.pdsPublicUrl
-        const internalSecret = process.env.MAGIC_INTERNAL_SECRET
-        const checkRes = await fetch(
-          `${pdsUrl}/_internal/account-by-email?email=${encodeURIComponent(result.email)}`,
-          {
-            headers: { 'x-internal-secret': internalSecret ?? '' },
-            signal: AbortSignal.timeout(3000),
-          },
-        )
-        if (checkRes.ok) {
-          const data = await checkRes.json() as { did: string | null }
-          if (data.did) {
-            did = data.did
-            // Sync the mapping to auth DB
-            ctx.db.setAccountEmail(result.email, did)
-          }
+      if (response instanceof Response || (response && typeof response.headers?.get === 'function')) {
+        // Forward the Set-Cookie header from better-auth's response
+        const setCookie = response.headers.get('set-cookie')
+        if (setCookie) {
+          res.setHeader('Set-Cookie', setCookie)
         }
-      } catch { /* fall through to auto-provision */ }
-    }
-
-    if (!did) {
-      did = await autoProvisionAccount(ctx, result.email) ?? undefined
-      if (!did) {
-        res.status(500).send('<p>Failed to create your account. Please try again.</p>')
+        res.redirect(303, '/account')
         return
       }
+
+      // If not a Response object, assume success
+      res.redirect(303, '/account')
+    } catch (err: any) {
+      logger.warn({ err, email }, 'OTP verification failed')
+      const errMsg = err?.message?.includes('invalid') ? 'Invalid or expired code. Please try again.'
+        : 'Verification failed. Please try again.'
+      res.type('html').send(renderOtpForm({ email, csrfToken: res.locals.csrfToken, error: errMsg }))
     }
-
-    // Record this client login (for per-client welcome vs sign-in emails)
-    ctx.db.recordClientLogin(result.email, 'account-settings')
-
-    // Create account session
-    const accountSessionId = crypto.randomBytes(32).toString('hex')
-    const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
-    ctx.db.createAccountSession({
-      sessionId: accountSessionId,
-      did,
-      email: result.email,
-      expiresAt,
-      userAgent: req.headers['user-agent'] || null,
-      ipAddress: req.ip || req.socket.remoteAddress || null,
-    })
-
-    setAccountSessionCookie(res, accountSessionId)
-    res.redirect(303, '/account')
-  })
-
-  // POST /account/logout
-  router.post('/account/logout', (req: AuthenticatedRequest, res: Response) => {
-    if (req.accountSession) {
-      ctx.db.deleteAccountSession(req.accountSession.sessionId)
-    }
-    res.clearCookie('magic_account_session')
-    res.redirect(303, '/account/login')
   })
 
   return router
 }
 
-function renderLoginForm(opts: {
-  csrfToken: string
-  error?: string
-}): string {
+function renderLoginForm(opts: { csrfToken: string; error?: string }): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -171,26 +115,21 @@ function renderLoginForm(opts: {
     <h1>Account Settings</h1>
     <p class="subtitle">Sign in to manage your account</p>
     ${opts.error ? '<p class="error">' + escapeHtml(opts.error) + '</p>' : ''}
-    <form method="POST" action="/account/login">
+    <form method="POST" action="/account/send-otp">
       <input type="hidden" name="csrf" value="${escapeHtml(opts.csrfToken)}">
       <div class="field">
         <label for="email">Email address</label>
         <input type="email" id="email" name="email" required autofocus
                placeholder="you@example.com">
       </div>
-      <button type="submit" class="btn-primary"><img src="/static/certified_brandmark_white.png" alt="" style="height: 18px; vertical-align: middle; margin-right: 10px;"><span style="vertical-align: middle;">Sign in with Certified</span></button>
+      <button type="submit" class="btn-primary">Continue with email</button>
     </form>
   </div>
 </body>
 </html>`
 }
 
-function renderOtpForm(opts: {
-  email: string
-  sessionId: string
-  csrfToken: string
-  error?: string
-}): string {
+function renderOtpForm(opts: { email: string; csrfToken: string; error?: string }): string {
   const maskedEmail = maskEmail(opts.email)
 
   return `<!DOCTYPE html>
@@ -204,20 +143,19 @@ function renderOtpForm(opts: {
 <body>
   <div class="container">
     <h1>Enter your code</h1>
-    <p class="subtitle">We sent a 6-digit code to <strong>${escapeHtml(maskedEmail)}</strong></p>
+    <p class="subtitle">We sent an 8-digit code to <strong>${escapeHtml(maskedEmail)}</strong></p>
     ${opts.error ? '<p class="error">' + escapeHtml(opts.error) + '</p>' : ''}
-    <form method="POST" action="/account/verify-code">
+    <form method="POST" action="/account/verify-otp">
       <input type="hidden" name="csrf" value="${escapeHtml(opts.csrfToken)}">
-      <input type="hidden" name="session_id" value="${escapeHtml(opts.sessionId)}">
       <input type="hidden" name="email" value="${escapeHtml(opts.email)}">
       <div class="field">
-        <input type="text" id="code" name="code" required autofocus
-               maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code"
-               placeholder="000000" class="otp-input">
+        <input type="text" id="otp" name="otp" required autofocus
+               maxlength="8" pattern="[0-9]{8}" inputmode="numeric" autocomplete="one-time-code"
+               placeholder="00000000" class="otp-input">
       </div>
       <button type="submit" class="btn-primary">Verify</button>
     </form>
-    <form method="POST" action="/account/login" style="margin-top: 12px;">
+    <form method="POST" action="/account/send-otp" style="margin-top: 12px;">
       <input type="hidden" name="csrf" value="${escapeHtml(opts.csrfToken)}">
       <input type="hidden" name="email" value="${escapeHtml(opts.email)}">
       <button type="submit" class="btn-secondary">Resend code</button>
@@ -226,7 +164,6 @@ function renderOtpForm(opts: {
 </body>
 </html>`
 }
-
 
 
 const CSS = `

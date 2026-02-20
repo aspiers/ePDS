@@ -16,12 +16,6 @@ export interface MagicLinkTokenRow {
   attempts: number
 }
 
-export interface AccountEmailRow {
-  email: string
-  did: string
-  createdAt: number
-}
-
 export interface BackupEmailRow {
   id: number
   did: string
@@ -37,14 +31,13 @@ export interface EmailRateLimitRow {
   sentAt: number
 }
 
-export interface AccountSessionRow {
-  sessionId: string
-  did: string
-  email: string
+export interface AuthFlowRow {
+  flowId: string
+  requestUri: string
+  clientId: string | null
+  email: string | null
   createdAt: number
   expiresAt: number
-  userAgent: string | null
-  ipAddress: string | null
 }
 
 export class MagicPdsDb {
@@ -89,13 +82,6 @@ export class MagicPdsDb {
           );
           CREATE INDEX IF NOT EXISTS idx_mlt_email ON magic_link_token(email);
           CREATE INDEX IF NOT EXISTS idx_mlt_expires ON magic_link_token(expires_at);
-
-          CREATE TABLE IF NOT EXISTS account_email (
-            email            TEXT PRIMARY KEY,
-            did              TEXT NOT NULL UNIQUE,
-            created_at       INTEGER NOT NULL
-          );
-          CREATE INDEX IF NOT EXISTS idx_ae_did ON account_email(did);
 
           CREATE TABLE IF NOT EXISTS backup_email (
             id                      INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -154,6 +140,34 @@ export class MagicPdsDb {
           );
           CREATE INDEX IF NOT EXISTS idx_ofa_email_time ON otp_failed_attempts(email, failed_at);
         `)
+      },
+
+      // v5: Drop account_email mirror table — pds-core now queries account.sqlite via
+      // accountManager.getAccountByEmail() directly; auth-service uses /_internal/account-by-email.
+      () => {
+        this.db.exec(`
+          DROP TABLE IF EXISTS account_email;
+        `)
+      },
+
+      // v6: Add auth_flow table for threading AT Protocol request_uri through better-auth flows.
+      () => {
+        this.db.exec(`
+          CREATE TABLE IF NOT EXISTS auth_flow (
+            flow_id      TEXT PRIMARY KEY,
+            request_uri  TEXT NOT NULL,
+            client_id    TEXT,
+            email        TEXT,
+            created_at   INTEGER NOT NULL,
+            expires_at   INTEGER NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS idx_af_expires ON auth_flow(expires_at);
+        `)
+      },
+
+      // v7: Drop account_session table — session management is now handled by better-auth.
+      () => {
+        this.db.exec(`DROP TABLE IF EXISTS account_session;`)
       },
     ]
 
@@ -223,28 +237,6 @@ export class MagicPdsDb {
       `DELETE FROM magic_link_token WHERE expires_at < ?`
     ).run(Date.now())
     return result.changes
-  }
-
-  // ── Account Email Operations ──
-
-  setAccountEmail(email: string, did: string): void {
-    this.db.prepare(
-      `INSERT OR REPLACE INTO account_email (email, did, created_at) VALUES (?, ?, ?)`
-    ).run(email.toLowerCase(), did, Date.now())
-  }
-
-  getDidByEmail(email: string): string | undefined {
-    const row = this.db.prepare(
-      `SELECT did FROM account_email WHERE email = ?`
-    ).get(email.toLowerCase()) as { did: string } | undefined
-    return row?.did
-  }
-
-  getEmailByDid(did: string): string | undefined {
-    const row = this.db.prepare(
-      `SELECT email FROM account_email WHERE did = ?`
-    ).get(did) as { email: string } | undefined
-    return row?.email
   }
 
   // ── Backup Email Operations ──
@@ -355,80 +347,58 @@ export class MagicPdsDb {
     `).get(csrfToken) as MagicLinkTokenRow | undefined
   }
 
-  // -- Account Session Operations --
-
-  createAccountSession(data: {
-    sessionId: string
-    did: string
-    email: string
-    expiresAt: number
-    userAgent: string | null
-    ipAddress: string | null
-  }): void {
-    this.db.prepare(
-      `INSERT INTO account_session (session_id, did, email, created_at, expires_at, user_agent, ip_address)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).run(data.sessionId, data.did, data.email, Date.now(), data.expiresAt, data.userAgent, data.ipAddress)
-  }
-
-  getAccountSession(sessionId: string): AccountSessionRow | undefined {
-    return this.db.prepare(
-      `SELECT session_id as sessionId, did, email, created_at as createdAt,
-       expires_at as expiresAt, user_agent as userAgent, ip_address as ipAddress
-       FROM account_session WHERE session_id = ? AND expires_at > ?`
-    ).get(sessionId, Date.now()) as AccountSessionRow | undefined
-  }
-
-  getSessionsByDid(did: string): AccountSessionRow[] {
-    return this.db.prepare(
-      `SELECT session_id as sessionId, did, email, created_at as createdAt,
-       expires_at as expiresAt, user_agent as userAgent, ip_address as ipAddress
-       FROM account_session WHERE did = ? AND expires_at > ? ORDER BY created_at DESC`
-    ).all(did, Date.now()) as AccountSessionRow[]
-  }
-
-  deleteAccountSession(sessionId: string): void {
-    this.db.prepare(`DELETE FROM account_session WHERE session_id = ?`).run(sessionId)
-  }
-
-  deleteSessionsByDid(did: string): void {
-    this.db.prepare(`DELETE FROM account_session WHERE did = ?`).run(did)
-  }
-
-  cleanupExpiredSessions(): number {
-    const result = this.db.prepare(`DELETE FROM account_session WHERE expires_at < ?`).run(Date.now())
-    return result.changes
-  }
-
-  // Delete all data for a DID (account deletion / GDPR)
+  // Delete all data for a DID (account deletion / GDPR).
+  // Note: email-specific cleanup (magic_link_token, email_rate_limit) is best-effort
+  // since the primary email is now owned by the PDS (account.sqlite), not by us.
   deleteAccountData(did: string): void {
     this.db.prepare('DELETE FROM backup_email WHERE did = ?').run(did)
-    this.db.prepare('DELETE FROM account_session WHERE did = ?').run(did)
-    const emailRow = this.db.prepare('SELECT email FROM account_email WHERE did = ?').get(did) as { email: string } | undefined
-    if (emailRow) {
-      this.db.prepare('DELETE FROM magic_link_token WHERE email = ?').run(emailRow.email)
-      this.db.prepare('DELETE FROM email_rate_limit WHERE email = ?').run(emailRow.email)
-    }
-    this.db.prepare('DELETE FROM account_email WHERE did = ?').run(did)
+  }
+
+  // ── Auth Flow Operations ──
+  // Short-lived records that thread the AT Protocol request_uri through better-auth flows.
+
+  createAuthFlow(data: {
+    flowId: string
+    requestUri: string
+    clientId: string | null
+    expiresAt: number
+  }): void {
+    this.db.prepare(
+      `INSERT INTO auth_flow (flow_id, request_uri, client_id, created_at, expires_at)
+       VALUES (?, ?, ?, ?, ?)`
+    ).run(data.flowId, data.requestUri, data.clientId, Date.now(), data.expiresAt)
+  }
+
+  getAuthFlow(flowId: string): AuthFlowRow | undefined {
+    return this.db.prepare(
+      `SELECT flow_id as flowId, request_uri as requestUri, client_id as clientId,
+       email, created_at as createdAt, expires_at as expiresAt
+       FROM auth_flow WHERE flow_id = ? AND expires_at > ?`
+    ).get(flowId, Date.now()) as AuthFlowRow | undefined
+  }
+
+  deleteAuthFlow(flowId: string): void {
+    this.db.prepare(`DELETE FROM auth_flow WHERE flow_id = ?`).run(flowId)
+  }
+
+  cleanupExpiredAuthFlows(): number {
+    const result = this.db.prepare(`DELETE FROM auth_flow WHERE expires_at < ?`).run(Date.now())
+    return result.changes
   }
 
 
   // ── Metrics ──
 
   getMetrics(): {
-    totalAccounts: number
     pendingTokens: number
-    activeSessions: number
     backupEmails: number
     rateLimitEntries: number
   } {
     const now = Date.now()
-    const totalAccounts = (this.db.prepare('SELECT COUNT(*) as c FROM account_email').get() as { c: number }).c
     const pendingTokens = (this.db.prepare('SELECT COUNT(*) as c FROM magic_link_token WHERE used = 0 AND expires_at > ?').get(now) as { c: number }).c
-    const activeSessions = (this.db.prepare('SELECT COUNT(*) as c FROM account_session WHERE expires_at > ?').get(now) as { c: number }).c
     const backupEmails = (this.db.prepare('SELECT COUNT(*) as c FROM backup_email WHERE verified = 1').get() as { c: number }).c
     const rateLimitEntries = (this.db.prepare('SELECT COUNT(*) as c FROM email_rate_limit').get() as { c: number }).c
-    return { totalAccounts, pendingTokens, activeSessions, backupEmails, rateLimitEntries }
+    return { pendingTokens, backupEmails, rateLimitEntries }
   }
 
   // ── Per-Client Login Tracking ──
@@ -444,25 +414,6 @@ export class MagicPdsDb {
     this.db.prepare(
       `INSERT OR IGNORE INTO client_logins (email, client_id, first_login_at) VALUES (?, ?, ?)`
     ).run(email.toLowerCase(), clientId, Date.now())
-  }
-
-  /**
-   * Look up a DID by email in the PDS's own account table.
-   * Used as a fallback when the email isn't tracked in magic-pds DB
-   * (e.g. accounts created before tracking or via auto-provision).
-   */
-  getDidFromPdsAccount(email: string): string | null {
-    const dbDir = path.dirname(this.db.name)
-    const pdsAccountDb = path.join(dbDir, 'account.sqlite')
-    if (!fs.existsSync(pdsAccountDb)) return null
-    try {
-      const pdsDb = new Database(pdsAccountDb, { readonly: true })
-      const row = pdsDb.prepare('SELECT did FROM account WHERE email = ?').get(email.toLowerCase()) as { did: string } | undefined
-      pdsDb.close()
-      return row?.did || null
-    } catch {
-      return null
-    }
   }
 
   close(): void {

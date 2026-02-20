@@ -105,21 +105,8 @@ describe('Magic Link Token Operations', () => {
   })
 })
 
-describe('Account Email Operations', () => {
-  it('sets and retrieves email-to-DID mapping', () => {
-    db.setAccountEmail('User@Test.com', 'did:plc:abc')
-    expect(db.getDidByEmail('user@test.com')).toBe('did:plc:abc')
-    expect(db.getEmailByDid('did:plc:abc')).toBe('user@test.com')
-  })
-
-  it('returns undefined for unknown email', () => {
-    expect(db.getDidByEmail('nobody@test.com')).toBeUndefined()
-  })
-})
-
 describe('Backup Email Operations', () => {
   it('adds and verifies a backup email', () => {
-    db.setAccountEmail('primary@test.com', 'did:plc:123')
     db.addBackupEmail('did:plc:123', 'backup@test.com', 'verify-hash')
 
     // Not verified yet
@@ -145,64 +132,6 @@ describe('Backup Email Operations', () => {
   })
 })
 
-describe('Account Session Operations', () => {
-  it('creates and retrieves a session', () => {
-    db.createAccountSession({
-      sessionId: 'sess-1',
-      did: 'did:plc:abc',
-      email: 'user@test.com',
-      expiresAt: Date.now() + 86400000,
-      userAgent: 'TestAgent',
-      ipAddress: '127.0.0.1',
-    })
-
-    const sess = db.getAccountSession('sess-1')
-    expect(sess).toBeDefined()
-    expect(sess!.did).toBe('did:plc:abc')
-  })
-
-  it('does not return expired sessions', () => {
-    db.createAccountSession({
-      sessionId: 'sess-expired',
-      did: 'did:plc:abc',
-      email: 'user@test.com',
-      expiresAt: Date.now() - 1000,
-      userAgent: null,
-      ipAddress: null,
-    })
-
-    expect(db.getAccountSession('sess-expired')).toBeUndefined()
-  })
-
-  it('deletes sessions by DID', () => {
-    db.createAccountSession({
-      sessionId: 'sess-2',
-      did: 'did:plc:xyz',
-      email: 'user@test.com',
-      expiresAt: Date.now() + 86400000,
-      userAgent: null,
-      ipAddress: null,
-    })
-
-    db.deleteSessionsByDid('did:plc:xyz')
-    expect(db.getSessionsByDid('did:plc:xyz')).toHaveLength(0)
-  })
-
-  it('cleans up expired sessions', () => {
-    db.createAccountSession({
-      sessionId: 'sess-old',
-      did: 'did:plc:abc',
-      email: 'user@test.com',
-      expiresAt: Date.now() - 1000,
-      userAgent: null,
-      ipAddress: null,
-    })
-
-    const cleaned = db.cleanupExpiredSessions()
-    expect(cleaned).toBe(1)
-  })
-})
-
 describe('Rate Limiting', () => {
   it('records and counts email sends', () => {
     db.recordEmailSend('rate@test.com', '1.2.3.4')
@@ -217,5 +146,58 @@ describe('Rate Limiting', () => {
     // but we can verify the method runs without error
     const cleaned = db.cleanupOldRateLimitEntries()
     expect(cleaned).toBeGreaterThanOrEqual(0)
+  })
+})
+
+describe('Auth Flow Operations', () => {
+  it('creates and retrieves an auth flow', () => {
+    db.createAuthFlow({
+      flowId: 'flow-1',
+      requestUri: 'urn:ietf:params:oauth:request_uri:abc123',
+      clientId: 'https://app.example/client',
+      expiresAt: Date.now() + 600_000, // 10 min
+    })
+
+    const flow = db.getAuthFlow('flow-1')
+    expect(flow).toBeDefined()
+    expect(flow!.requestUri).toBe('urn:ietf:params:oauth:request_uri:abc123')
+    expect(flow!.clientId).toBe('https://app.example/client')
+    expect(flow!.email).toBeNull()
+  })
+
+  it('returns undefined for expired auth flows', () => {
+    db.createAuthFlow({
+      flowId: 'flow-expired',
+      requestUri: 'urn:ietf:params:oauth:request_uri:expired',
+      clientId: null,
+      expiresAt: Date.now() - 1000, // already expired
+    })
+
+    expect(db.getAuthFlow('flow-expired')).toBeUndefined()
+  })
+
+  it('deletes an auth flow', () => {
+    db.createAuthFlow({
+      flowId: 'flow-delete',
+      requestUri: 'urn:ietf:params:oauth:request_uri:delete',
+      clientId: null,
+      expiresAt: Date.now() + 600_000,
+    })
+
+    db.deleteAuthFlow('flow-delete')
+    expect(db.getAuthFlow('flow-delete')).toBeUndefined()
+  })
+
+  it('cleans up expired auth flows', () => {
+    db.createAuthFlow({
+      flowId: 'flow-cleanup',
+      requestUri: 'urn:ietf:params:oauth:request_uri:cleanup',
+      clientId: null,
+      expiresAt: Date.now() - 1000,
+    })
+
+    const cleaned = db.cleanupExpiredAuthFlows()
+    expect(cleaned).toBeGreaterThanOrEqual(1)
+    expect(db.getAuthFlow('flow-cleanup')).toBeUndefined()
   })
 })

@@ -34,9 +34,26 @@ export function createVerifyCodeRouter(ctx: AuthServiceContext): Router {
       return
     }
 
-    // Check if account exists (for the magic callback)
-    let did = ctx.db.getDidByEmail(result.email)
-    if (!did) did = ctx.db.getDidByBackupEmail(result.email)
+    // Check if account exists (for the magic callback).
+    // Check backup emails first, then query the PDS (source of truth for email→DID).
+    let did = ctx.db.getDidByBackupEmail(result.email)
+    if (!did) {
+      try {
+        const pdsUrl = process.env.PDS_INTERNAL_URL || ctx.config.pdsPublicUrl
+        const internalSecret = process.env.MAGIC_INTERNAL_SECRET
+        const checkRes = await fetch(
+          `${pdsUrl}/_internal/account-by-email?email=${encodeURIComponent(result.email)}`,
+          {
+            headers: { 'x-internal-secret': internalSecret ?? '' },
+            signal: AbortSignal.timeout(3000),
+          },
+        )
+        if (checkRes.ok) {
+          const data = await checkRes.json() as { did: string | null }
+          if (data.did) did = data.did
+        }
+      } catch { /* treat as new account if lookup fails */ }
+    }
     const isNewAccount = !did
 
     // Existing user + first time on this client: show consent screen

@@ -1,68 +1,127 @@
-import { Router, type Response } from 'express'
+import { Router, type Request, type Response, type NextFunction } from 'express'
 import type { AuthServiceContext } from '../context.js'
 import { createLogger } from '@magic-pds/shared'
-import { requireAuth, type AuthenticatedRequest } from '../middleware/account-auth.js'
 import { hashToken, generateMagicLinkToken } from '@magic-pds/shared'
 import { escapeHtml } from '@magic-pds/shared'
+import { fromNodeHeaders } from 'better-auth/node'
 
 const logger = createLogger('auth:account-settings')
 
-export function createAccountSettingsRouter(ctx: AuthServiceContext): Router {
-  const router = Router()
+/**
+ * Look up a DID for an email via the PDS internal endpoint.
+ * Returns null if not found or on error.
+ */
+async function getDidByEmail(email: string, pdsUrl: string, internalSecret: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `${pdsUrl}/_internal/account-by-email?email=${encodeURIComponent(email)}`,
+      {
+        headers: { 'x-internal-secret': internalSecret },
+        signal: AbortSignal.timeout(3000),
+      },
+    )
+    if (!res.ok) return null
+    const data = await res.json() as { did: string | null }
+    return data.did
+  } catch {
+    return null
+  }
+}
 
-  // All account routes require authentication
-  const auth = requireAuth(ctx)
+/**
+ * Middleware that validates a better-auth session and injects it into res.locals.
+ * If not authenticated, redirects to /account/login.
+ */
+function requireBetterAuth(auth: any) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const session = await auth.api.getSession({
+        headers: fromNodeHeaders(req.headers),
+      })
+      if (!session?.user?.email) {
+        res.redirect(303, '/account/login')
+        return
+      }
+      res.locals.betterAuthSession = session
+      next()
+    } catch {
+      res.redirect(303, '/account/login')
+    }
+  }
+}
+
+export function createAccountSettingsRouter(ctx: AuthServiceContext, auth: any): Router {
+  const router = Router()
+  const requireAuth = requireBetterAuth(auth)
+
+  const pdsUrl = process.env.PDS_INTERNAL_URL || ctx.config.pdsPublicUrl
+  const internalSecret = process.env.MAGIC_INTERNAL_SECRET ?? ''
 
   // GET /account - main settings page
-  router.get('/account', auth, (req: AuthenticatedRequest, res: Response) => {
-    const session = req.accountSession!
-    const primaryEmail = ctx.db.getEmailByDid(session.did)
+  router.get('/account', requireAuth, async (req: Request, res: Response) => {
+    const session = res.locals.betterAuthSession
+    const email = session.user.email.toLowerCase()
     const handleDomain = ctx.config.pdsHostname
-    const backupEmails = ctx.db.getBackupEmails(session.did)
-    const sessions = ctx.db.getSessionsByDid(session.did)
+
+    // Look up DID from PDS
+    const did = await getDidByEmail(email, pdsUrl, internalSecret)
+    const backupEmails = did ? ctx.db.getBackupEmails(did) : []
+
+    // Get all better-auth sessions for this user
+    let sessions: any[] = []
+    try {
+      const sessionsResponse = await auth.api.listSessions({
+        headers: fromNodeHeaders(req.headers),
+      })
+      sessions = Array.isArray(sessionsResponse) ? sessionsResponse : []
+    } catch (err) {
+      logger.warn({ err }, 'Failed to list sessions')
+    }
 
     res.type('html').send(renderSettingsPage({
-      did: session.did,
-      email: primaryEmail || session.email,
+      did: did ?? '(unknown)',
+      email,
       handleDomain,
       backupEmails,
       sessions,
-      currentSessionId: session.sessionId,
+      currentSessionToken: session.session.token,
       csrfToken: res.locals.csrfToken,
     }))
   })
 
   // POST /account/backup-email/add
-  router.post('/account/backup-email/add', auth, async (req: AuthenticatedRequest, res: Response) => {
-    const session = req.accountSession!
+  router.post('/account/backup-email/add', requireAuth, async (req: Request, res: Response) => {
+    const session = res.locals.betterAuthSession
     const email = (req.body.email as string || '').trim().toLowerCase()
+    const primaryEmail = session.user.email.toLowerCase()
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       res.redirect(303, '/account?error=invalid_email')
       return
     }
 
-    // Check not already primary
-    const primaryEmail = ctx.db.getEmailByDid(session.did)
-    const handleDomain = ctx.config.pdsHostname
     if (email === primaryEmail) {
       res.redirect(303, '/account?error=already_primary')
       return
     }
 
+    const did = await getDidByEmail(primaryEmail, pdsUrl, internalSecret)
+    if (!did) {
+      res.redirect(303, '/account?error=account_not_found')
+      return
+    }
+
     try {
       const { token, tokenHash } = generateMagicLinkToken()
-      ctx.db.addBackupEmail(session.did, email, tokenHash)
+      ctx.db.addBackupEmail(did, email, tokenHash)
 
-      // Build verification URL
       const baseUrl = 'https://' + ctx.config.hostname + '/account/backup-email/verify'
       const verifyUrl = new URL(baseUrl)
       verifyUrl.searchParams.set('token', token)
-      const url = verifyUrl.toString()
 
       await ctx.emailSender.sendBackupEmailVerification({
         to: email,
-        verifyUrl: url,
+        verifyUrl: verifyUrl.toString(),
         pdsName: ctx.config.hostname,
         pdsDomain: ctx.config.pdsHostname,
       })
@@ -75,7 +134,7 @@ export function createAccountSettingsRouter(ctx: AuthServiceContext): Router {
   })
 
   // GET /account/backup-email/verify?token=... - show confirmation form
-  router.get('/account/backup-email/verify', (req: AuthenticatedRequest, res: Response) => {
+  router.get('/account/backup-email/verify', (req: Request, res: Response) => {
     const token = req.query.token as string | undefined
     if (!token) {
       res.status(400).send('<p>Missing verification token.</p>')
@@ -105,7 +164,7 @@ export function createAccountSettingsRouter(ctx: AuthServiceContext): Router {
   })
 
   // POST /account/backup-email/verify - perform actual verification
-  router.post('/account/backup-email/verify', (req: AuthenticatedRequest, res: Response) => {
+  router.post('/account/backup-email/verify', (req: Request, res: Response) => {
     const token = (req.body.token as string || '').trim()
     if (!token) {
       res.status(400).send('<p>Missing verification token.</p>')
@@ -123,36 +182,57 @@ export function createAccountSettingsRouter(ctx: AuthServiceContext): Router {
   })
 
   // POST /account/backup-email/remove
-  router.post('/account/backup-email/remove', auth, (req: AuthenticatedRequest, res: Response) => {
-    const session = req.accountSession!
+  router.post('/account/backup-email/remove', requireAuth, async (req: Request, res: Response) => {
+    const session = res.locals.betterAuthSession
     const email = (req.body.email as string || '').trim().toLowerCase()
-    if (email) {
-      ctx.db.removeBackupEmail(session.did, email)
+    const did = await getDidByEmail(session.user.email, pdsUrl, internalSecret)
+    if (did && email) {
+      ctx.db.removeBackupEmail(did, email)
     }
     res.redirect(303, '/account')
   })
 
-  // POST /account/session/revoke
-  router.post('/account/session/revoke', auth, (req: AuthenticatedRequest, res: Response) => {
-    const sessionIdToRevoke = req.body.session_id as string
-    if (sessionIdToRevoke) {
-      ctx.db.deleteAccountSession(sessionIdToRevoke)
+  // POST /account/session/revoke — revoke a specific better-auth session by token
+  router.post('/account/session/revoke', requireAuth, async (req: Request, res: Response) => {
+    const tokenToRevoke = req.body.session_token as string
+    if (tokenToRevoke) {
+      try {
+        await auth.api.revokeSession({
+          body: { token: tokenToRevoke },
+          headers: fromNodeHeaders(req.headers),
+        })
+      } catch (err) {
+        logger.warn({ err }, 'Failed to revoke session')
+      }
     }
     res.redirect(303, '/account')
   })
 
-  // POST /account/sessions/revoke-all
-  router.post('/account/sessions/revoke-all', auth, (req: AuthenticatedRequest, res: Response) => {
-    const session = req.accountSession!
-    ctx.db.deleteSessionsByDid(session.did)
-    res.clearCookie('magic_account_session')
+  // POST /account/sessions/revoke-all — revoke all sessions for this user
+  router.post('/account/sessions/revoke-all', requireAuth, async (req: Request, res: Response) => {
+    try {
+      await auth.api.revokeSessions({
+        headers: fromNodeHeaders(req.headers),
+      })
+    } catch (err) {
+      logger.warn({ err }, 'Failed to revoke all sessions')
+    }
     res.redirect(303, '/account/login')
   })
 
+  // POST /account/logout — sign out via better-auth
+  router.post('/account/logout', async (req: Request, res: Response) => {
+    try {
+      await auth.api.signOut({
+        headers: fromNodeHeaders(req.headers),
+      })
+    } catch { /* ignore */ }
+    res.redirect(303, '/account/login')
+  })
 
   // POST /account/handle - update user handle via PDS admin API
-  router.post('/account/handle', auth, async (req: AuthenticatedRequest, res: Response) => {
-    const session = req.accountSession!
+  router.post('/account/handle', requireAuth, async (req: Request, res: Response) => {
+    const session = res.locals.betterAuthSession
     const handle = (req.body.handle as string || '').trim().toLowerCase()
     const handleDomain = ctx.config.pdsHostname
 
@@ -161,11 +241,16 @@ export function createAccountSettingsRouter(ctx: AuthServiceContext): Router {
       return
     }
 
-    // Validate handle: alphanumeric and hyphens, 3-20 chars, must end with domain
     const fullHandle = handle.includes('.') ? handle : handle + '.' + handleDomain
     const localPart = fullHandle.replace('.' + handleDomain, '')
     if (!/^[a-z0-9]([a-z0-9-]{1,18}[a-z0-9])?$/.test(localPart)) {
       res.redirect(303, '/account?error=invalid_handle')
+      return
+    }
+
+    const did = await getDidByEmail(session.user.email, pdsUrl, internalSecret)
+    if (!did) {
+      res.redirect(303, '/account?error=handle_failed')
       return
     }
 
@@ -177,17 +262,13 @@ export function createAccountSettingsRouter(ctx: AuthServiceContext): Router {
         return
       }
 
-      const pdsUrl = ctx.config.pdsPublicUrl
-      const response = await fetch(pdsUrl + '/xrpc/com.atproto.admin.updateAccountHandle', {
+      const response = await fetch(ctx.config.pdsPublicUrl + '/xrpc/com.atproto.admin.updateAccountHandle', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Basic ' + Buffer.from('admin:' + pdsAdminPassword).toString('base64'),
         },
-        body: JSON.stringify({
-          did: session.did,
-          handle: fullHandle,
-        }),
+        body: JSON.stringify({ did, handle: fullHandle }),
       })
 
       if (!response.ok) {
@@ -205,12 +286,18 @@ export function createAccountSettingsRouter(ctx: AuthServiceContext): Router {
   })
 
   // POST /account/delete - delete account via PDS admin API + local cleanup
-  router.post('/account/delete', auth, async (req: AuthenticatedRequest, res: Response) => {
-    const session = req.accountSession!
+  router.post('/account/delete', requireAuth, async (req: Request, res: Response) => {
+    const session = res.locals.betterAuthSession
     const confirmation = req.body.confirm as string
 
     if (confirmation !== 'DELETE') {
       res.redirect(303, '/account?error=confirm_delete')
+      return
+    }
+
+    const did = await getDidByEmail(session.user.email, pdsUrl, internalSecret)
+    if (!did) {
+      res.redirect(303, '/account?error=delete_failed')
       return
     }
 
@@ -222,14 +309,13 @@ export function createAccountSettingsRouter(ctx: AuthServiceContext): Router {
         return
       }
 
-      const pdsUrl = ctx.config.pdsPublicUrl
-      const response = await fetch(pdsUrl + '/xrpc/com.atproto.admin.deleteAccount', {
+      const response = await fetch(ctx.config.pdsPublicUrl + '/xrpc/com.atproto.admin.deleteAccount', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Basic ' + Buffer.from('admin:' + pdsAdminPassword).toString('base64'),
         },
-        body: JSON.stringify({ did: session.did }),
+        body: JSON.stringify({ did }),
       })
 
       if (!response.ok) {
@@ -239,11 +325,14 @@ export function createAccountSettingsRouter(ctx: AuthServiceContext): Router {
         return
       }
 
-      // Clean up local data
-      ctx.db.deleteAccountData(session.did)
+      // Clean up local data (backup emails, etc.)
+      ctx.db.deleteAccountData(did)
 
-      // Clear session
-      res.clearCookie('magic_account_session')
+      // Sign out of better-auth
+      try {
+        await auth.api.signOut({ headers: fromNodeHeaders(req.headers) })
+      } catch { /* ignore */ }
+
       res.type('html').send(renderDeletedPage())
     } catch (err) {
       logger.error({ err }, 'Failed to delete account')
@@ -259,8 +348,8 @@ function renderSettingsPage(opts: {
   email: string
   handleDomain: string
   backupEmails: Array<{ email: string; verified: number; id: number }>
-  sessions: Array<{ sessionId: string; email: string; createdAt: number; userAgent: string | null; ipAddress: string | null }>
-  currentSessionId: string
+  sessions: Array<{ token: string; createdAt: Date | string; userAgent?: string | null; ipAddress?: string | null }>
+  currentSessionToken: string
   csrfToken: string
 }): string {
   const backupRows = opts.backupEmails.map(be => `
@@ -276,7 +365,7 @@ function renderSettingsPage(opts: {
 
   const sessionRows = opts.sessions.map(s => {
     const date = new Date(s.createdAt).toLocaleString()
-    const isCurrent = s.sessionId === opts.currentSessionId
+    const isCurrent = s.token === opts.currentSessionToken
     const agent = s.userAgent ? s.userAgent.substring(0, 60) : 'Unknown'
     return `
     <div class="setting-row">
@@ -284,9 +373,9 @@ function renderSettingsPage(opts: {
         <span class="session-agent">${escapeHtml(agent)}${isCurrent ? ' (current)' : ''}</span>
         <span class="session-date">${date}</span>
       </div>
-      ${isCurrent ? ''  : `<form method="POST" action="/account/session/revoke" style="display:inline">
+      ${isCurrent ? '' : `<form method="POST" action="/account/session/revoke" style="display:inline">
         <input type="hidden" name="csrf" value="${escapeHtml(opts.csrfToken)}">
-        <input type="hidden" name="session_id" value="${s.sessionId}">
+        <input type="hidden" name="session_token" value="${escapeHtml(s.token)}">
         <button type="submit" class="btn-danger-sm">Revoke</button>
       </form>`}
     </div>

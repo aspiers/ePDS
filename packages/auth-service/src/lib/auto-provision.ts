@@ -34,8 +34,6 @@ export async function autoProvisionAccount(ctx: AuthServiceContext, email: strin
     const data = await res.json() as { did: string; handle: string }
     logger.info({ did: data.did, handle: data.handle, email }, 'Auto-provisioned new account')
 
-    ctx.db.setAccountEmail(email, data.did)
-
     return data.did
   } catch (err) {
     logger.error({ err }, 'Failed to call PDS createAccount')

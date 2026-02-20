@@ -18,7 +18,7 @@ dotenv.config()
 
 import * as http from 'node:http'
 import { PDS, envToCfg, envToSecrets, readEnv } from '@atproto/pds'
-import { MagicPdsDb, generateRandomHandle, createLogger, verifyCallback } from '@magic-pds/shared'
+import { generateRandomHandle, createLogger, verifyCallback } from '@magic-pds/shared'
 
 const logger = createLogger('pds-core')
 
@@ -26,9 +26,6 @@ async function main() {
   const env = readEnv()
   const cfg = envToCfg(env)
   const secrets = envToSecrets(env)
-
-  const dbLocation = process.env.DB_LOCATION || './data/magic-pds.sqlite'
-  const magicDb = new MagicPdsDb(dbLocation)
 
   const authHostname = process.env.AUTH_HOSTNAME || 'auth.localhost'
   const handleDomain = process.env.PDS_HOSTNAME || 'localhost'
@@ -121,21 +118,13 @@ async function main() {
       // Step 3: Get the client
       const client = await provider.clientManager.getClient(clientId)
 
-      // Step 4: Resolve or create the account
-      let did = magicDb.getDidByEmail(email)
-      if (!did) {
-        // Check if this is a backup email (recovery flow)
-        did = magicDb.getDidByBackupEmail(email)
-      }
-      if (!did) {
-        // Check if account exists in PDS but not yet tracked in magic-pds DB
-        // (e.g. accounts created before tracking, or via auto-provision)
-        did = magicDb.getDidFromPdsAccount(email) || undefined
-        if (did) {
-          magicDb.setAccountEmail(email, did)
-          logger.info({ did, email }, 'Synced existing PDS account to magic-pds DB')
-        }
-      }
+      // Step 4: Resolve or create the account.
+      // Use the PDS accountManager directly — account.sqlite is the single source of truth.
+      // Backup email lookup (recovery flow) is handled by the auth-service before issuing
+      // the HMAC-signed callback; by the time we reach here, email is the verified primary.
+      const existingAccount = await pds.ctx.accountManager.getAccountByEmail(email)
+      let did: string | undefined = existingAccount?.did
+
       let account: any // Account type from @atproto/oauth-provider-api
 
       if (did) {
@@ -162,7 +151,6 @@ async function main() {
                 password: undefined as unknown as string,
               },
             )
-            magicDb.setAccountEmail(email, account.sub)
             did = account.sub
             logger.info({ did, email, handle }, 'Created account')
             break
@@ -332,7 +320,6 @@ async function main() {
   const shutdown = async () => {
     logger.info('Magic PDS shutting down')
     await pds.destroy()
-    magicDb.close()
     process.exit(0)
   }
 
