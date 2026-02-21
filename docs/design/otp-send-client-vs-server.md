@@ -50,12 +50,13 @@ The page is rendered first, then the browser calls the better-auth OTP endpoint
 via `fetch()` on page load. This causes a brief flash of the email form before
 the OTP step appears.
 
-**Root cause of the flash:** The server always renders `#step-email` as the
-visible initial state. The `fetch()` itself is not the cause — even if the OTP
-were sent server-side, the flash would still occur if the server rendered the
-email form first. The flash is eliminated by having the server render the
-correct form (e.g. the OTP input) immediately, which is what the Method-Aware
-Hybrid approach achieves.
+**Root cause of the flash:** The current implementation renders `#step-email` as
+the visible initial state even when a `login_hint` is present. The `fetch()`
+call itself is not the cause — the flash is purely a rendering decision. The
+old `magic-pds` branch and the `atproto-ke8` stash both demonstrate the correct
+fix: when `login_hint` is present, render `#step-otp` (and hide `#step-email`)
+directly in the server response. OTP sending and form visibility are independent
+choices; the server-side send approach always intended to combine them.
 
 ```mermaid
 sequenceDiagram
@@ -73,13 +74,13 @@ sequenceDiagram
     Auth-->>Browser: 200 unified login page (email form visible briefly)
 
     Note over Browser: JS fires on page load
-    Browser->>Auth: POST /api/auth/sign-in/email-otp/send (login_hint)
+    Browser->>Auth: POST /api/auth/email-otp/send-verification-otp (login_hint)
     Auth->>Email: sendVerificationOTP(email)
     Email-->>Auth: sent
     Auth-->>Browser: 200 { success: true }
     Note over Browser: JS transitions to OTP step
 
-    Browser->>Auth: POST /api/auth/sign-in/email-otp/verify (email, otp)
+    Browser->>Auth: POST /api/auth/sign-in/email-otp (email, otp)
     Auth-->>Browser: 302 → /auth/complete
     Browser->>Auth: GET /auth/complete
     Auth-->>Browser: 302 → /oauth/magic-callback?...&hmac=...
@@ -95,7 +96,7 @@ sequenceDiagram
 The old approach used a custom `tokenService` (`magic-link/token.ts`) that could
 be called synchronously in the GET handler. When migrating to better-auth
 (`6c7c0c30`), OTP sending had to go through better-auth's own HTTP endpoint
-(`POST /api/auth/sign-in/email-otp/send`). Calling that server-side requires
+(`POST /api/auth/email-otp/send-verification-otp`). Calling that server-side requires
 `auth.api.sendVerificationOTP()`, which is async and has its own session/cookie
 behaviour. The simpler path was to let the browser call the endpoint directly —
 better-auth handles its own CSRF for API calls automatically, so no CSRF token
@@ -116,7 +117,7 @@ is known to be feasible.
 | Duplicate GET | Second GET re-sends OTP (same bug) | Second GET re-sends OTP via JS | GET is side-effect-free; POST is idempotent via `flowId` |
 | Route chain | authorize.ts → send-code.ts → verify-code.ts | login-page.ts (unified) | login-page.ts (unified, `initialStep` aware) |
 | Session | Custom tokenService / sessionId | better-auth | better-auth |
-| Future auth modes | Email only | Email only | Passkey / SIWx / social — determined per user |
+| Future auth modes | Email only | Email only | Extensible — add methods when they are implemented |
 
 ### Client-side send (current)
 
@@ -134,23 +135,29 @@ Moving `sendVerificationOTP()` into the `GET /oauth/authorize` handler was
 considered as a fix for the UI flash but has been **explicitly rejected** for
 the following reasons:
 
-1. **Violates HTTP semantics.** `GET` must be safe and idempotent (RFC 9110
-   §9.2.1). Sending an email is a state-mutating side effect and must not
-   happen on a `GET` request.
-2. **Breaks future multi-modal auth.** A `login_hint` identifies the user — it
-   does not dictate the authentication method. Automatically sending an OTP
-   email when a user loads the page is wrong if the user's preferred method is
-   a Passkey, SIWx wallet signature, or federated social login. The server
-   cannot know which method to use until it has looked up the user's registered
-   credentials.
+1. **Adds a method-assuming side effect at the wrong layer.** The GET handler
+   already creates an `auth_flow` row and sets a cookie — it is not side-effect
+   free. However, those mutations are *structurally required* by the OAuth
+   authorization code flow. Sending an OTP email is different: it hard-codes
+   email OTP as the authentication method before the handler has consulted the
+   user's available credentials. If the user has a social account configured
+   (already possible today), auto-sending email OTP is unexpected. When further
+   auth methods are added, this assumption will need to be unwound at the wrong
+   layer (the GET handler) rather than in the auth-method selection logic where
+   it belongs.
+2. **HTTP semantics (secondary concern).** RFC 9110 §9.2.1 states GET should be
+   safe and idempotent. The endpoint already violates this strictly (cookie +
+   DB row), so this argument alone is not decisive. It is still worth noting as
+   a design smell, and the combined weight of the two points makes a clear case
+   for keeping state-mutating auth actions on POST.
 3. **Resend still needs the JS path.** The Resend button must call the OTP
    endpoint from the browser regardless, so the client-side send path cannot be
    eliminated entirely.
 
 | Pros | Cons |
 |------|------|
-| No flash — OTP form rendered immediately | **Violates HTTP GET safety / idempotency** |
-| Duplicate GETs blocked by request_uri dedup | **Assumes email OTP; breaks Passkeys / SIWx** |
+| No flash — OTP form rendered immediately | **Assumes email OTP before credentials are consulted** |
+| Duplicate GETs blocked by request_uri dedup | HTTP GET semantics (secondary — endpoint already has side effects) |
 | Works without JS | Error handling harder — no UI feedback mid-render |
 | One fewer round-trip | Resend button still needs the JS path anyway |
 
@@ -163,18 +170,20 @@ side of the HTTP boundary.
 ### Pillar 1 — State Determination (server-side, in `GET /oauth/authorize`)
 
 The GET handler already creates the `auth_flow` row and reads the `login_hint`.
-It should additionally look up the user's available authentication methods and
-choose an `initialStep` value (e.g. `email`, `otp`, `passkey-prompt`). The
-server then renders the HTML with the **correct DOM elements visible
-immediately**, eliminating the flash without performing any side-effecting
-action.
+It should additionally determine the correct `initialStep` and render the HTML
+with the **correct DOM elements visible immediately**, eliminating the flash
+without performing any method-assuming side effect.
+
+Today there are two cases:
 
 ```
-login_hint present + user exists + no passkey  →  initialStep = "otp"   (OTP form visible)
-login_hint present + user exists + has passkey →  initialStep = "passkey-prompt"
-login_hint present + user not found            →  initialStep = "otp"   (new user — OTP creates account)
-no login_hint                                  →  initialStep = "email"  (email form visible)
+login_hint present  →  initialStep = "otp"   (OTP form visible, email form hidden)
+no login_hint       →  initialStep = "email"  (email form visible)
 ```
+
+When additional auth methods (e.g. Passkeys, social-only accounts) are
+introduced, the `initialStep` logic should be extended to consult the user's
+registered credentials and select the appropriate initial mode at that point.
 
 ### Pillar 2 — Action Execution (client-side POST)
 
@@ -187,9 +196,9 @@ that intent explicitly.
 The target is the first-party auth endpoint on our own server
 (`POST /api/auth/email-otp/send-verification-otp`). The browser never contacts
 the email provider directly — the server receives the request, enforces
-idempotency, and dispatches the email. This is not "client → email provider"
-behaviour; it is "client → auth server → email provider", with the auth server
-remaining in control throughout.
+idempotency, and dispatches the email. The flow is
+`client → auth server → email provider`, with the auth server remaining in
+control throughout.
 
 The flash disappears because the correct form is visible on first paint, not
 because the email is sent before the page is served.
@@ -206,7 +215,7 @@ sequenceDiagram
     App-->>Browser: 302 → /oauth/authorize?request_uri=...&login_hint=email
 
     Browser->>Auth: GET /oauth/authorize?request_uri=...&login_hint=email
-    Note over Auth: Determines initialStep="otp" (no passkey registered)
+    Note over Auth: login_hint present → initialStep="otp"
     Auth-->>Browser: 200 OTP form pre-rendered (no flash)
 
     Note over Browser: Inline script fires on first paint
@@ -227,24 +236,38 @@ sequenceDiagram
     Auth-->>App: { access_token, refresh_token, ... }
 ```
 
-### Pillar 3 — Idempotency (API level, using `flowId`)
+### Pillar 3 — Idempotency (duplicate-send prevention)
 
 Browser pre-fetching, extensions, or rapid reloads can cause the background
-`POST` to fire more than once. The `POST` endpoint must enforce idempotency:
+`POST` to fire more than once. There are two complementary approaches:
 
-- The client includes the `flowId` (already available in the page / cookie) in
-  the request body.
-- The server checks whether an OTP has already been sent for this `flowId` (via
-  `ctx.db.getAuthFlowByRequestUri` or a dedicated `otpSentAt` column).
-- The server validates that the `email` in the POST body matches the
-  `login_hint` stored in the `auth_flow` row, preventing cross-session abuse
-  where an attacker supplies another user's `flowId`.
-- If an OTP was sent within the rate-limit window, return `200` without
-  re-sending — do not return an error.
-- **Enforcement location:** all of the above checks must live inside the
-  `send-verification-otp` endpoint on the server. The client UI may skip a
-  redundant call as an optimisation, but correctness must never depend on
-  UI-side guards alone.
+**Option A — JS guard using the `reused` flag (near-term)**
+
+The GET handler already detects duplicate page loads via `getAuthFlowByRequestUri`
+and sets a `reused` flag in the rendered page. The inline script can check this
+flag and skip the auto-send if the page was a duplicate load. This is a
+lightweight client-side guard and can be implemented today.
+
+**Option B — Server-side idempotency on the send endpoint (longer term)**
+
+If we introduce a custom wrapper endpoint around
+`POST /api/auth/email-otp/send-verification-otp`, we can enforce idempotency
+server-side:
+
+- Accept a `flowId` in the request body and record `otp_sent_at` on the
+  `auth_flows` row when the first OTP is dispatched.
+- On subsequent calls with the same `flowId`, return `200` without re-sending
+  if an OTP was sent within the rate-limit window.
+- Validate that the `email` in the request body matches the `login_hint` stored
+  on the `auth_flow` row, preventing cross-session abuse.
+
+Note: we do not fully control better-auth's built-in
+`POST /api/auth/email-otp/send-verification-otp` endpoint, so Option B
+requires wrapping or proxying it rather than modifying it in-place.
+
+- **Enforcement location:** all server-side idempotency checks must live inside
+  the wrapper endpoint. The client UI may skip a redundant call as an
+  optimisation, but correctness must never depend on UI-side guards alone.
 
 This also protects the Resend button: a rapid double-click will not dispatch
 two emails.
@@ -255,19 +278,21 @@ two emails.
 |---|---|---|---|
 | HTTP semantics | ❌ GET side-effect | ✅ POST side-effect | ✅ POST side-effect |
 | UI flash | ✅ No flash | ❌ Flash | ✅ No flash |
-| Future auth modes (Passkey etc.) | ❌ Assumes email OTP | ✅ Can be extended | ✅ Designed for it |
+| Future auth modes (Passkey etc.) | ❌ Assumes email OTP before consulting credentials | ✅ Can be extended | ✅ Extension point is explicit |
 | Duplicate send protection | Partial (request_uri dedup) | ❌ Each GET re-sends | ✅ `flowId` idempotency |
 | Works without JS | ✅ | ❌ | ⚠️ degraded — OTP form renders, user can submit manually; no auto-send |
 
 ## Open questions
 
-- **`initialStep` lookup:** Where is the canonical place to check whether a
-  user has a Passkey registered? This needs a helper in `auth-service` that
-  queries better-auth's credential store before rendering the page.
-- **`otpSentAt` schema change:** The idempotency check for Pillar 3 may require
-  adding an `otp_sent_at` column to the `auth_flows` table. Evaluate whether
-  the existing `flowId`-based dedup in `getAuthFlowByRequestUri` is sufficient
-  or whether a separate flag is needed.
+- **Duplicate-send approach selection:** Option A (JS `reused`-flag guard) is
+  simpler and can be done immediately. Option B (server-side wrapper with
+  `otp_sent_at` on the `auth_flows` table) is more robust and prevents
+  duplicate sends even if the client is misbehaving, but requires concrete
+  design of the wrapper endpoint and its integration with better-auth's existing
+  OTP rate-limiting.
+- **`initialStep` rendering implementation:** A stash (`atproto-ke8`) already
+  renders `#step-otp` visible when `login_hint` is present. That change needs
+  to land before the Pillar 2 auto-send script can work correctly.
 - **Error rendering for failed OTP send:** If the background `POST` fails (e.g.
   SMTP error), the OTP form is already visible but the code was never sent.
   The client script must surface a dismissible error banner and offer a Resend
