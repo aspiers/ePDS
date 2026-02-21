@@ -129,11 +129,11 @@ is known to be feasible.
 | Social login buttons follow the same pattern | Requires JS — broken if browser blocks scripts |
 | Easy to show loading states in UI | Extra round-trip: page load → JS fetch → OTP |
 
-### Server-side send (old / proposed fix) — **rejected**
+### Server-side send (old / proposed fix) — **superseded**
 
 Moving `sendVerificationOTP()` into the `GET /oauth/authorize` handler was
-considered as a fix for the UI flash but has been **explicitly rejected** for
-the following reasons:
+considered as a fix for the UI flash but has been **superseded** by the
+Method-Aware Hybrid approach for the following reasons:
 
 1. **Adds a method-assuming side effect at the wrong layer.** The GET handler
    already creates an `auth_flow` row and sets a cookie — it is not side-effect
@@ -289,6 +289,12 @@ server-side:
 - Validate that the `email` in the request body matches the `login_hint` stored
   on the `auth_flow` row, preventing cross-session abuse.
 
+Note: the current JS sends `{ email, type: 'sign-in' }` to the OTP endpoint —
+no `flowId`. For Option B to work, the JS would need to include `flowId` in the
+request body, and a wrapper endpoint or middleware would need to intercept the
+call before forwarding to better-auth. This is not free: it requires a schema
+change, a new route, and a client-side change to pass `flowId`.
+
 Note: we do not fully control better-auth's built-in
 `POST /api/auth/email-otp/send-verification-otp` endpoint, so Option B
 requires wrapping or proxying it rather than modifying it in-place.
@@ -310,9 +316,9 @@ dispatch two emails.
 |---|---|---|---|
 | HTTP semantics | ❌ GET side-effect | ✅ POST side-effect | ✅ POST side-effect |
 | UI flash | ✅ No flash | ❌ Flash | ✅ No flash |
-| Future auth modes (Passkey etc.) | ❌ Assumes email OTP before consulting credentials | ✅ Can be extended | ✅ Extension point is explicit |
+| Future auth modes (Passkey etc.) | ⚠️ Would need rework when new auth methods are added | ✅ Can be extended | ✅ Extension point is explicit |
 | Duplicate send protection | Partial (request_uri dedup) | ❌ Each GET re-sends | ✅ `otpAlreadySent` flag; optional server-side wrapper |
-| Works without JS | ✅ | ❌ | ⚠️ degraded — OTP form renders, user can submit manually; no auto-send |
+| Works without JS | ✅ | ❌ | ❌ — OTP form renders but form submission also uses `fetch()`; same as current |
 
 ## Open questions
 
