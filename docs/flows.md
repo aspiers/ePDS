@@ -2,47 +2,47 @@
 
 ## Overview
 
-ePDS is a standard AT Protocol PDS. Any AT Protocol OAuth client works against it.
-The sections below describe the two supported login flows and the ePDS-specific
-conventions your client should follow.
+ePDS lets users log in with their email address. There are no passwords — the
+user receives a one-time code by email and enters it to authenticate. Your app
+sends the user to ePDS, the user authenticates there, and ePDS sends them back
+to your app with a token you can use to make API calls on their behalf.
 
 ## Login Flows
 
-ePDS supports two OAuth login flows for client apps. The difference is whether the
-client app collects the user's email itself or delegates that to the auth server.
+There are two ways to integrate:
+
+**Flow 1** — your app has its own email input. You pass the email to ePDS and
+the user lands directly on the code-entry screen.
+
+**Flow 2** — your app has a simple "Sign in" button. ePDS shows the email form
+itself.
+
+Both flows end the same way: the user enters their code, ePDS redirects back to
+your app, and your app exchanges that redirect for a token.
 
 ## Flow 1 — App has its own email form
 
-The client app shows an email input, then passes the email as `login_hint` to PAR.
-The auth server skips its own email step and goes straight to OTP input.
-
-1. User enters email in the client app
-2. Client POSTs to its own `/api/oauth/login` endpoint
-3. Client sends PAR to PDS with `login_hint=<email>`
-4. PDS responds with `request_uri`
-5. Client redirects browser to `/oauth/authorize?request_uri=...&login_hint=<email>`
-6. Auth server renders OTP input page (email step hidden), sends OTP to user
-7. User enters OTP code
-8. Auth server verifies OTP via better-auth → redirects to `/auth/complete`
-9. Auth server issues authorization code via `/oauth/magic-callback`
-10. Client exchanges code for tokens (standard AT Protocol OAuth)
+1. User enters email in your app and clicks "Sign in"
+2. Your login handler registers the login attempt with ePDS (passing the email)
+3. Your app redirects the user's browser to the ePDS auth page (with the email)
+4. ePDS immediately sends the OTP and shows the code-entry screen
+5. User reads the 8-digit code from their email and submits it
+6. ePDS verifies the code and redirects back to your app's callback URL
+7. Your callback handler exchanges the redirect for an access token
+8. User is logged in
 
 ## Flow 2 — App has a simple login button
 
-The client app has no email form. The auth server collects the email itself.
-
-1. User clicks "Login" in the client app
-2. Client POSTs to its own `/api/oauth/login` endpoint (no `login_hint`)
-3. Client sends PAR to PDS (no `login_hint`)
-4. PDS responds with `request_uri`
-5. Client redirects browser to `/oauth/authorize?request_uri=...`
-6. Auth server renders email input form
-7. User enters email and submits
-8. Auth server sends OTP to user, shows OTP input
-9. User enters OTP code
-10. Auth server verifies OTP via better-auth → redirects to `/auth/complete`
-11. Auth server issues authorization code via `/oauth/magic-callback`
-12. Client exchanges code for tokens (standard AT Protocol OAuth)
+1. User clicks "Sign in" in your app
+2. Your login handler registers the login attempt with ePDS
+3. Your app redirects the user's browser to the ePDS auth page
+4. ePDS shows an email input form
+5. User enters their email and submits
+6. ePDS sends the OTP and shows the code-entry screen
+7. User reads the 8-digit code from their email and submits it
+8. ePDS verifies the code and redirects back to your app's callback URL
+9. Your callback handler exchanges the redirect for an access token
+10. User is logged in
 
 ## Sequence Diagrams
 
@@ -133,10 +133,14 @@ sequenceDiagram
 
 ## Integration Reference
 
-### Client Metadata
+### Register your app
 
-Host a JSON document at your `client_id` URL. This is fetched by ePDS to validate
-your client and by the auth service for branding (app name, logo, email templates):
+Before users can log in, you need to tell ePDS about your app. You do this by
+hosting a small JSON file at a public HTTPS URL — this URL also acts as your
+app's identifier. ePDS fetches this file to verify your app is legitimate and
+to find your callback URL.
+
+The file must be served with `Content-Type: application/json`:
 
 ```json
 {
@@ -149,17 +153,26 @@ your client and by the auth service for branding (app name, logo, email template
   "grant_types": ["authorization_code", "refresh_token"],
   "response_types": ["code"],
   "token_endpoint_auth_method": "none",
-  "dpop_bound_access_tokens": true,
+  "dpop_bound_access_tokens": true
+}
+```
+
+The last four fields are fixed values required by the AT Protocol — copy them
+as-is. The only things you need to change are `client_id`, `client_name`,
+`client_uri`, `logo_uri`, and `redirect_uris`.
+
+#### Optional branding
+
+You can customise the OTP email and login page colours:
+
+```json
+{
   "email_template_uri": "https://yourapp.example.com/email-template.html",
   "email_subject_template": "{{code}} — Your {{app_name}} code",
   "brand_color": "#000000",
   "background_color": "#ffffff"
 }
 ```
-
-`email_template_uri`, `email_subject_template`, `brand_color`, and
-`background_color` are optional ePDS extensions. If omitted, the auth service
-falls back to default Certified branding.
 
 The email template must be an HTML file containing at minimum a `{{code}}`
 placeholder. Supported template variables:
@@ -172,10 +185,18 @@ placeholder. Supported template variables:
 | `{{#is_new_user}}...{{/is_new_user}}` | Shown only on first sign-up |
 | `{{^is_new_user}}...{{/is_new_user}}` | Shown only on subsequent sign-ins |
 
-### PKCE and DPoP Helpers
+### Security helpers
 
-Both flows require PKCE and DPoP. Here are reference implementations in TypeScript
-(from the [maearth-demo](https://github.com/hypercerts-org/maearth-demo) app):
+ePDS uses two standard security mechanisms to protect the login flow:
+
+- **PKCE** — prevents an attacker who intercepts the final redirect from using
+  the code themselves
+- **DPoP** — binds the access token to your server so it can't be used by
+  anyone who steals it
+
+You don't need to understand the details — just copy these helper functions
+(from the [maearth-demo](https://github.com/hypercerts-org/maearth-demo) app)
+and call them as shown in the code examples below:
 
 ```typescript
 import * as crypto from 'node:crypto'
@@ -259,10 +280,16 @@ function derToRaw(der: Buffer): Buffer {
 }
 ```
 
-### PAR Request (Flow 1)
+### Login handler — registering the login attempt
 
-Send a Pushed Authorization Request to `<pds-url>/oauth/par`. The DPoP nonce
-retry pattern is required — ePDS always demands a nonce on the first attempt:
+Your login handler calls ePDS's `/oauth/par` endpoint to register the login
+attempt. ePDS returns a short-lived token (`request_uri`) that identifies this
+specific login attempt. You then redirect the user to the auth page with that
+token.
+
+ePDS always rejects the first call with a security challenge — your code
+must catch that and retry with the challenge value included. The code below
+handles this automatically:
 
 ```typescript
 const parBody = new URLSearchParams({
@@ -300,11 +327,11 @@ if (!parRes.ok) {
 const { request_uri } = await parRes.json()
 ```
 
-### Authorization Redirect
+### Redirecting the user to ePDS
 
-Redirect the user to `/oauth/authorize` with the `request_uri` from PAR.
-For Flow 1, also pass `login_hint` so the auth server renders the OTP form
-directly (no email form shown to the user):
+After registering the login attempt, redirect the user's browser to the ePDS
+auth page. For Flow 1, include the email so ePDS skips its own email form and
+goes straight to OTP entry:
 
 ```typescript
 // Flow 1
@@ -328,10 +355,12 @@ response.cookies.set('oauth_session', signedSessionCookie, {
 })
 ```
 
-### Token Exchange (Callback)
+### Callback handler — exchanging the redirect for a token
 
-After the user authenticates, ePDS redirects to your `redirect_uri` with `?code=`
-and `?state=`. Validate `state`, then exchange the code for tokens with DPoP:
+After the user authenticates, ePDS redirects them back to your callback URL
+with a short-lived code. Your callback handler checks it's a genuine redirect
+from this login attempt (by verifying the `state` value you stored earlier),
+then exchanges the code for an access token:
 
 ```typescript
 // Verify state matches what we stored
@@ -371,8 +400,9 @@ if (!tokenRes.ok) {
 const { access_token, sub: userDid } = await tokenRes.json()
 ```
 
-The `sub` field in the token response is the user's DID (e.g. `did:plc:abc123...`).
-Resolve it to a handle via the PLC directory:
+The `sub` field in the token response is the user's AT Protocol identity
+(a DID, e.g. `did:plc:abc123...`). You can resolve it to a human-readable
+handle via the PLC directory:
 
 ```typescript
 const plcRes = await fetch(`https://plc.directory/${userDid}`)
@@ -382,17 +412,18 @@ const handle = alsoKnownAs?.find((u: string) => u.startsWith('at://'))
 // e.g. "a3x9kf.epds-poc1.example.com"
 ```
 
-### User Handles
+### User handles
 
-Users get a random handle (e.g. `a3x9kf.epds-poc1.example.com`). Handles are
-not email-derived, for privacy.
+Each user gets a randomly generated handle (e.g. `a3x9kf.pds.example.com`).
+Handles are not derived from the user's email address, for privacy.
 
-## Why redirect to the auth server at all? (Flow 1)
+## Why does the user have to leave my app at all? (Flow 1)
 
-Even in Flow 1, where the client already has the email, the redirect to
-`/oauth/authorize` on the auth server is required by the AT Protocol OAuth spec:
+Even in Flow 1, where your app already has the email, the user still has to
+be briefly redirected to the ePDS auth page. This is a requirement of the
+AT Protocol:
 
-- The OAuth authorization code must be issued by the authorization server
-  (the auth subdomain), not the client
-- Future authentication mechanisms (passkeys, WebAuthn) require the authenticator
-  to be bound to the auth server's origin — the client app's origin won't do
+- The final authentication step (verifying the OTP) must happen on ePDS's
+  domain, not your app's domain
+- Future authentication methods (passkeys, WebAuthn) need to be bound to ePDS's
+  origin — your app's origin won't work for those
