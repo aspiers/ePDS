@@ -44,19 +44,16 @@ sequenceDiagram
     Auth-->>App: { access_token, refresh_token, ... }
 ```
 
-## Current approach (main branch)
+## Previous approach (before atproto-ke8)
 
-The page is rendered first, then the browser calls the better-auth OTP endpoint
-via `fetch()` on page load. This causes a brief flash of the email form before
-the OTP step appears.
+The page was rendered first with `#step-email` visible, then the browser called
+the better-auth OTP endpoint via `fetch()` on page load and transitioned to the
+OTP step via JS. This caused a brief flash of the email form.
 
-**Root cause of the flash:** The current implementation renders `#step-email` as
-the visible initial state even when a `login_hint` is present. The `fetch()`
-call itself is not the cause — the flash is purely a rendering decision. The
-old `magic-pds` branch and the `atproto-ke8` stash both demonstrate the correct
-fix: when `login_hint` is present, render `#step-otp` (and hide `#step-email`)
-directly in the server response. OTP sending and form visibility are independent
-choices; the server-side send approach always intended to combine them.
+**Root cause of the flash:** The implementation rendered `#step-email` as the
+visible initial state even when a `login_hint` was present. The `fetch()` call
+itself was not the cause — the flash was purely a rendering decision. OTP
+sending and form visibility are independent choices.
 
 ```mermaid
 sequenceDiagram
@@ -110,16 +107,16 @@ is known to be feasible.
 
 ### Summary
 
-| | Old (magic-pds) | Current (main) | Method-Aware Hybrid (converged) |
+| | Old (magic-pds) | Pre-ke8 (flash-prone) | Method-Aware Hybrid (current) |
 |---|---|---|---|
 | OTP send | Server-side in GET handler | Client-side JS on page load | Client-side POST, fired after pre-rendered OTP form is shown |
 | Flash | None — OTP form rendered directly | Yes — email form briefly visible | None — server renders correct initial step |
-| Duplicate GET | Second GET re-sends OTP (same bug) | Second GET re-sends OTP via JS | GET is side-effect-free; POST is idempotent via `flowId` |
+| Duplicate GET | Second GET re-sends OTP (same bug) | Second GET re-sends OTP via JS | GET is side-effect-free; `otpAlreadySent` flag skips auto-send |
 | Route chain | authorize.ts → send-code.ts → verify-code.ts | login-page.ts (unified) | login-page.ts (unified, `initialStep` aware) |
 | Session | Custom tokenService / sessionId | better-auth | better-auth |
 | Future auth modes | Email only | Email only | Extensible — add methods when they are implemented |
 
-### Client-side send (current)
+### Client-side send (pre-ke8)
 
 | Pros | Cons |
 |------|------|
@@ -161,20 +158,20 @@ Method-Aware Hybrid approach for the following reasons:
 | Works without JS | Error handling harder — no UI feedback mid-render |
 | One fewer round-trip | Resend button still needs the JS path anyway |
 
-## Method-Aware Hybrid Approach
+## Method-Aware Hybrid Approach (implemented)
 
 The converged architecture separates **state determination** (what to show)
 from **action execution** (sending the email) and keeps each on the correct
-side of the HTTP boundary.
+side of the HTTP boundary. Implemented in `login-page.ts` (atproto-ke8).
 
 ### Pillar 1 — State Determination (server-side, in `GET /oauth/authorize`)
 
-The GET handler already creates the `auth_flow` row and reads the `login_hint`.
-It should additionally determine the correct `initialStep` and render the HTML
-with the **correct DOM elements visible immediately**, eliminating the flash
-without performing any method-assuming side effect.
+The GET handler creates the `auth_flow` row, reads the `login_hint`, and
+determines the correct `initialStep`. The HTML is rendered with the **correct
+DOM elements visible immediately**, eliminating the flash without performing
+any method-assuming side effect.
 
-Today there are two cases:
+Two cases:
 
 ```
 login_hint present  →  initialStep = "otp"   (OTP form visible, email form hidden)
@@ -187,11 +184,11 @@ registered credentials and select the appropriate initial mode at that point.
 
 ### Pillar 2 — Action Execution (client-side POST)
 
-When the browser receives the pre-rendered page showing the OTP input form, a
-small inline script fires a background `POST` to send the OTP. This is
-semantically correct: the user's intention to authenticate has already been
-established (by the PAR request and the `login_hint`), and the `POST` expresses
-that intent explicitly.
+When the browser receives the pre-rendered page showing the OTP input form, an
+inline script fires a background `POST` to send the OTP. This is semantically
+correct: the user's intention to authenticate has already been established (by
+the PAR request and the `login_hint`), and the `POST` expresses that intent
+explicitly.
 
 The target is the first-party auth endpoint on our own server
 (`POST /api/auth/email-otp/send-verification-otp`). The browser never contacts
@@ -202,6 +199,12 @@ control throughout.
 
 The flash disappears because the correct form is visible on first paint, not
 because the email is sent before the page is served.
+
+**Subtitle UX:** The server renders the subtitle as "Sending code to
+ad\*\*\*@example.com…" (present tense). Once the background `POST` succeeds, the
+JS updates it to "We sent an 8-digit code to ad\*\*\*@example.com". This avoids
+claiming the code was sent before the `POST` has completed. If the `POST` fails,
+an error banner is shown and the Resend button remains available.
 
 ```mermaid
 sequenceDiagram
@@ -219,8 +222,8 @@ sequenceDiagram
     Auth-->>Browser: 200 OTP form pre-rendered (no flash)
 
     Note over Browser: Inline script fires on first paint
-    Browser->>Auth: POST /api/auth/email-otp/send-verification-otp (email, flowId)
-    Note over Auth: Idempotency check — skip if already sent for this flowId
+    Browser->>Auth: POST /api/auth/email-otp/send-verification-otp (email)
+    Note over Auth: Sends OTP (Option A: skipped entirely if otpAlreadySent)
     Auth->>Email: sendVerificationOTP(email)
     Email-->>Auth: sent
     Auth-->>Browser: 200 { success: true }
@@ -259,22 +262,20 @@ second `auth_flow` row. It does **not** prevent the duplicate page's JS from
 firing the auto-send, because the auto-send hits better-auth's OTP endpoint
 directly, not the `auth_flow` table.
 
-#### Option A — `otpAlreadySent` flag (recommended near-term fix)
+#### Option A — `otpAlreadySent` flag (implemented)
 
-Because the server already knows whether this is a duplicate load (`existingFlow`
-is truthy in `createLoginPageRouter`), it can pass a single extra bit of state
-to the page:
+The server knows whether this is a duplicate load (`existingFlow` is truthy in
+`createLoginPageRouter`), and passes that state to the page:
 
-1. When `reused=true`, render the page with `otpAlreadySent: true` embedded in
-   the inline script.
-2. The JS checks this flag on load: if set, skip the auto-send and display the
-   OTP form immediately with a message such as "Code already sent to your email".
+1. When `reused=true` and `login_hint` is present, the page is rendered with
+   `otpAlreadySent: true` embedded in the inline script.
+2. The JS checks this flag on load: if set, it skips the auto-send. The server
+   renders the subtitle as "Code already sent to ad\*\*\*@example.com".
 3. The Resend button still works — it is a deliberate user action, not an
    auto-send, so it is not gated by the flag.
 
-This is the lowest-risk fix: it requires no changes to better-auth, no schema
-migration, and no new endpoints. It is fully compatible with the hybrid approach
-since the server is simply conveying state it already knows.
+This required no changes to better-auth, no schema migration, and no new
+endpoints. The server simply conveys state it already knows.
 
 #### Option B — Server-side wrapper endpoint (longer term)
 
@@ -312,28 +313,17 @@ dispatch two emails.
 
 ### Why this supersedes both prior approaches
 
-| Concern | Server-side GET | Client-side JS (current) | Method-Aware Hybrid |
+| Concern | Server-side GET | Client-side JS (pre-ke8) | Method-Aware Hybrid (current) |
 |---|---|---|---|
 | HTTP semantics | ❌ GET side-effect | ✅ POST side-effect | ✅ POST side-effect |
 | UI flash | ✅ No flash | ❌ Flash | ✅ No flash |
 | Future auth modes (Passkey etc.) | ⚠️ Would need rework when new auth methods are added | ✅ Can be extended | ✅ Extension point is explicit |
 | Duplicate send protection | Partial (request_uri dedup) | ❌ Each GET re-sends | ✅ `otpAlreadySent` flag; optional server-side wrapper |
-| Works without JS | ✅ | ❌ | ❌ — OTP form renders but form submission also uses `fetch()`; same as current |
+| Works without JS | ✅ | ❌ | ❌ — OTP form renders but form submission also uses `fetch()`; same as pre-ke8 |
 
 ## Open questions
 
-- **`initialStep` rendering implementation:** A stash (`atproto-ke8`) already
-  renders `#step-otp` visible when `login_hint` is present. That change needs
-  to land before the Pillar 2 auto-send script can work correctly.
-- **`otpAlreadySent` flag implementation:** `createLoginPageRouter` already
-  knows when a flow is reused (`existingFlow` is truthy). The remaining work is
-  to thread a boolean into the rendered page and add a JS guard that skips
-  the auto-send and displays "Code already sent to your email" instead.
 - **Option B wrapper endpoint:** Decide whether to implement the server-side
   wrapper (`otp_sent_at` on `auth_flows`) after Option A lands. Evaluate whether
   better-auth's built-in rate-limiting is sufficient or whether the wrapper is
   needed for Resend double-click protection.
-- **Error rendering for failed OTP send:** If the background `POST` fails (e.g.
-  SMTP error), the OTP form is already visible but the code was never sent.
-  The client script must surface a dismissible error banner and offer a Resend
-  button — consistent with the current JS error-handling path.

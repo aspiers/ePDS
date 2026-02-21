@@ -44,8 +44,7 @@ Two patterns are supported depending on whether your app collects the user's ema
 
 - **Flow 1** — your app has its own email form: the user enters their email in your
   app, you pass it to ePDS, and the user lands directly on the OTP input. No ePDS
-  email form shown. (Known issue: brief flash of email form while OTP is sending —
-  tracked in atproto-ke8.)
+  email form shown.
 - **Flow 2** — your app has a simple "Login" button: ePDS shows its own email input
   form and handles the whole login UI. (Not yet tested end-to-end — tracked in
   atproto-daj.)

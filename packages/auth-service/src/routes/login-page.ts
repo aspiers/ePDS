@@ -94,7 +94,17 @@ export function createLoginPageRouter(ctx: AuthServiceContext): Router {
     const clientMeta: ClientMetadata = clientId ? await resolveClientMetadata(clientId) : {}
     const clientName = clientMeta.client_name ?? (clientId ? await resolveClientName(clientId) : 'an application')
 
-    logger.info({ flowId, clientId, requestUri: requestUri.slice(0, 50), reused: !!existingFlow }, 'Serving login page for auth_flow')
+    // Pillar 1 — State Determination: decide which step to render based on
+    // login_hint presence. No method-assuming side effects in the GET handler.
+    const hasLoginHint = !!(loginHint && loginHint.includes('@'))
+    const initialStep = hasLoginHint ? 'otp' : 'email'
+
+    // Pillar 3 — Idempotency (Option A): when this is a duplicate GET for an
+    // existing flow (e.g. browser extension, StayFocusd), tell the client-side
+    // script that OTP was already sent so it skips the auto-send.
+    const otpAlreadySent = hasLoginHint && !!existingFlow
+
+    logger.info({ flowId, clientId, requestUri: requestUri.slice(0, 50), reused: !!existingFlow, initialStep, otpAlreadySent }, 'Serving login page for auth_flow')
 
     res.type('html').send(renderLoginPage({
       flowId,
@@ -102,6 +112,8 @@ export function createLoginPageRouter(ctx: AuthServiceContext): Router {
       clientName,
       branding: clientMeta,
       loginHint: loginHint ?? '',
+      initialStep,
+      otpAlreadySent,
       csrfToken: res.locals.csrfToken,
       authBasePath: '/api/auth',
       pdsPublicUrl: ctx.config.pdsPublicUrl,
@@ -117,6 +129,8 @@ function renderLoginPage(opts: {
   clientName: string
   branding: ClientMetadata
   loginHint: string
+  initialStep: 'email' | 'otp'
+  otpAlreadySent: boolean
   csrfToken: string
   authBasePath: string
   pdsPublicUrl: string
@@ -204,7 +218,7 @@ function renderLoginPage(opts: {
     ${socialButtonsHtml}
 
     <!-- Step 1: Email entry (calls better-auth sendOtp) -->
-    <div id="step-email" class="step-email">
+    <div id="step-email" class="step-email${opts.initialStep === 'otp' ? ' hidden' : ''}">
       <form id="form-send-otp">
         <div class="field">
           <label for="email">Email address</label>
@@ -217,10 +231,14 @@ function renderLoginPage(opts: {
     </div>
 
     <!-- Step 2: OTP entry (calls better-auth verifyOtp) -->
-    <div id="step-otp" class="step-otp">
-      <p class="subtitle" id="otp-subtitle">We sent a code to your email</p>
+    <div id="step-otp" class="step-otp${opts.initialStep === 'otp' ? ' active' : ''}">
+      <p class="subtitle" id="otp-subtitle">${opts.initialStep === 'otp'
+        ? (opts.otpAlreadySent
+          ? `Code already sent to ${escapeHtml(opts.loginHint.replace(/(.{2})[^@]*(@.*)/, '$1***$2'))}`
+          : `Sending code to ${escapeHtml(opts.loginHint.replace(/(.{2})[^@]*(@.*)/, '$1***$2'))}…`)
+        : 'We sent a code to your email'}</p>
       <form id="form-verify-otp">
-        <input type="hidden" id="otp-email" name="email" value="">
+        <input type="hidden" id="otp-email" name="email" value="${escapeHtml(opts.loginHint)}">
         <div class="field">
           <input type="text" id="code" name="code" required
                  maxlength="8" pattern="[0-9]{8}" inputmode="numeric"
@@ -233,7 +251,7 @@ function renderLoginPage(opts: {
     </div>
 
     <a href="/auth/recover?request_uri=${encodeURIComponent(opts.pdsPublicUrl + '/placeholder')}"
-       class="recovery-link" id="recovery-link" style="display:none;">
+       class="recovery-link" id="recovery-link" style="display:${opts.initialStep === 'otp' ? 'block' : 'none'};">
       Recover with backup email
     </a>
   </div>
@@ -379,16 +397,27 @@ function renderLoginPage(opts: {
         document.getElementById('code').value = '';
       });
 
-      // Pre-fill email if login_hint was provided and auto-send OTP
+      // Pillar 1: If login_hint was provided, the OTP step is already visible
+      // server-side — no DOM transition needed.
+      // Pillar 2: Auto-fire the OTP send as a client-side POST.
+      // Pillar 3: Skip auto-send if this is a duplicate GET (otpAlreadySent).
       var loginHint = ${JSON.stringify(opts.loginHint)};
-      if (loginHint && loginHint.includes('@')) {
-        document.getElementById('email').value = loginHint;
-        // Auto-send on load
-        sendOtp(loginHint).then(function(result) {
-          if (!result.error) {
-            showOtpStep(loginHint);
-          }
-        });
+      var initialStep = ${JSON.stringify(opts.initialStep)};
+      var otpAlreadySent = ${JSON.stringify(opts.otpAlreadySent)};
+
+      if (initialStep === 'otp' && loginHint) {
+        currentEmail = loginHint;
+        var masked = loginHint.replace(/(.{2})[^@]*(@.*)/, '$1***$2');
+        if (!otpAlreadySent) {
+          // First load — fire the OTP send in the background.
+          sendOtp(loginHint).then(function(result) {
+            if (result.error) {
+              showError(result.error);
+            } else {
+              otpSubtitle.textContent = 'We sent an 8-digit code to ' + masked;
+            }
+          });
+        }
       }
     })();
   </script>

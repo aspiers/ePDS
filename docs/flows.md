@@ -27,9 +27,6 @@ The auth server skips its own email step and goes straight to OTP input.
 9. Auth server issues authorization code via `/oauth/magic-callback`
 10. Client exchanges code for tokens (standard AT Protocol OAuth)
 
-> **Known issue**: there is a brief flash of the email form before the OTP step
-> appears. Tracked in [atproto-ke8 / atproto-trf].
-
 ## Flow 2 — App has a simple login button
 
 > **Not yet tested end-to-end.** Tracked in atproto-daj.
