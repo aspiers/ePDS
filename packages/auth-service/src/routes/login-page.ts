@@ -45,6 +45,14 @@ export function createLoginPageRouter(ctx: AuthServiceContext): Router {
       return
     }
 
+    logger.debug({
+      requestUri: requestUri.slice(0, 60),
+      loginHint: loginHint ? loginHint.replace(/(.{2})[^@]*(@.*)/, '$1***$2') : undefined,
+      userAgent: req.headers['user-agent'],
+      referer: req.headers['referer'],
+      ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+    }, 'GET /oauth/authorize')
+
     // Create an auth_flow row to thread request_uri through better-auth
     const flowId = randomBytes(16).toString('hex')
     try {
