@@ -26,9 +26,8 @@ See [configuration.md](configuration.md) for a full reference.
 ### Build and Start
 
 ```bash
-# Build images (use --no-cache for pds-core if changes aren't picked up)
-docker compose build
-docker compose build --no-cache pds   # if cache busting is needed
+# Build images (always use --no-cache — cache busting is broken)
+docker compose build --no-cache
 
 # Start services
 docker compose up -d
@@ -42,7 +41,7 @@ Caddy handles TLS automatically via ACME/Let's Encrypt.
 ### Updating
 
 ```bash
-docker compose build
+docker compose build --no-cache
 docker compose up -d
 ```
 

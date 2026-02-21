@@ -49,9 +49,8 @@ script — all tests are run from the root via vitest.
 ## Docker
 
 ```bash
-# Build images (use --no-cache for pds-core — cache busting is broken)
-docker build --no-cache -f Dockerfile.pds -t epds .
-docker build -f Dockerfile.auth -t magic-auth .
+# Build images (always use --no-cache — cache busting is broken)
+sudo -g docker bash -c "cd /data/projects/ePDS && docker compose build --no-cache"
 
 # Run the full stack
 sudo -g docker bash -c "cd /data/projects/ePDS && docker compose up -d"
@@ -60,6 +59,8 @@ sudo -g docker bash -c "cd /data/projects/ePDS && docker compose logs -f"
 # Always use 'up -d' (not 'restart') to pick up .env changes
 sudo -g docker bash -c "cd /data/projects/ePDS && docker compose up -d"
 ```
+
+Container names: `epds-core` (PDS, port 3000) and `epds-auth` (auth service, port 3001).
 
 ## Code Style
 
@@ -163,7 +164,7 @@ import { AuthServiceContext } from './context.js'
 
 - `docker compose restart` does **not** pick up `.env` changes — use
   `docker compose up -d`.
-- `docker build --no-cache` required for PDS image (cache busting broken).
+- `docker compose build --no-cache` required (cache busting is broken for both images).
 - better-auth does **not** auto-migrate — `runBetterAuthMigrations()` must be
   called explicitly on startup.
 - New PDS accounts need a real password passed to `createAccount()` (use
