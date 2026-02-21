@@ -1,5 +1,5 @@
 {
-  "name": "magic-pds",
+  "name": "epds",
   "version": "0.1.0",
   "private": true,
   "description": "Passwordless ATProto PDS with magic link authentication",
@@ -11,8 +11,8 @@
   "scripts": {
     "build": "pnpm --recursive build",
     "dev": "pnpm --recursive --parallel dev",
-    "dev:pds": "pnpm --filter @magic-pds/pds-core dev",
-    "dev:auth": "pnpm --filter @magic-pds/auth-service dev",
+    "dev:pds": "pnpm --filter @certified-app/pds-core dev",
+    "dev:auth": "pnpm --filter @certified-app/auth-service dev",
     "start": "pnpm --recursive --parallel start",
     "typecheck": "tsc --build tsconfig.json",
     "test": "vitest run",

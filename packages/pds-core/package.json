@@ -1,5 +1,5 @@
 {
-  "name": "@magic-pds/pds-core",
+  "name": "@certified-app/pds-core",
   "version": "0.1.0",
   "private": true,
   "main": "dist/index.js",
@@ -10,7 +10,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@magic-pds/shared": "workspace:*",
+    "@certified-app/shared": "workspace:*",
     "@atproto/pds": "^0.4.209",
     "@atproto/oauth-provider": "^0.15.9",
     "@atproto/crypto": "^0.4.5",

@@ -8,12 +8,12 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
-import { MagicPdsDb } from '@magic-pds/shared'
+import { EpdsDb } from '@certified-app/shared'
 import type { AuthServiceContext } from '../context.js'
 import type { AuthServiceConfig } from '../context.js'
 
 // Build a minimal mock context for consent tests
-function makeMockContext(db: MagicPdsDb): AuthServiceContext {
+function makeMockContext(db: EpdsDb): AuthServiceContext {
   const config: AuthServiceConfig = {
     hostname: 'auth.localhost',
     port: 3001,
@@ -77,13 +77,13 @@ function makePostReq(body: Record<string, string>) {
 }
 
 describe('Consent route logic', () => {
-  let db: MagicPdsDb
+  let db: EpdsDb
   let dbPath: string
   let ctx: AuthServiceContext
 
   beforeEach(() => {
     dbPath = path.join(os.tmpdir(), `test-consent-${Date.now()}.db`)
-    db = new MagicPdsDb(dbPath)
+    db = new EpdsDb(dbPath)
     ctx = makeMockContext(db)
   })
 
@@ -156,7 +156,7 @@ describe('Consent route logic', () => {
 
   describe('signCallback (used by consent POST)', () => {
     it('produces a stable HMAC signature for the same inputs', async () => {
-      const { signCallback } = await import('@magic-pds/shared')
+      const { signCallback } = await import('@certified-app/shared')
       const params = {
         request_uri: 'urn:req:test',
         email: 'user@example.com',
@@ -170,7 +170,7 @@ describe('Consent route logic', () => {
     })
 
     it('produces different signatures for different emails', async () => {
-      const { signCallback } = await import('@magic-pds/shared')
+      const { signCallback } = await import('@certified-app/shared')
       const base = { request_uri: 'urn:req:x', approved: '1', new_account: '0' }
       const r1 = signCallback({ ...base, email: 'alice@example.com' }, 'secret')
       const r2 = signCallback({ ...base, email: 'bob@example.com' }, 'secret')
@@ -178,7 +178,7 @@ describe('Consent route logic', () => {
     })
 
     it('verifies correctly with verifyCallback', async () => {
-      const { signCallback, verifyCallback } = await import('@magic-pds/shared')
+      const { signCallback, verifyCallback } = await import('@certified-app/shared')
       const params = {
         request_uri: 'urn:req:verify-test',
         email: 'user@example.com',

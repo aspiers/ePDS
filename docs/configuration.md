@@ -96,7 +96,7 @@ Used for password reset, confirm-email, and other AT Protocol built-in emails.
 
 | Variable | Description |
 |----------|-------------|
-| `DB_LOCATION` | Path to the magic-pds SQLite database (default `/data/magic-pds.sqlite`) |
+| `DB_LOCATION` | Path to the ePDS SQLite database (default `/data/epds.sqlite`) |
 
 ## Runtime
 

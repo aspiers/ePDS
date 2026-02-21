@@ -40,6 +40,6 @@ COPY --from=build /app/package.json ./
 COPY --from=build /app/pnpm-workspace.yaml ./
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-ENV DB_LOCATION=/data/magic-pds.sqlite
+ENV DB_LOCATION=/data/epds.sqlite
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "packages/auth-service/dist/index.js"]

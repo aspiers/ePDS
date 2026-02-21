@@ -13,15 +13,15 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
-import { MagicPdsDb } from '@magic-pds/shared'
+import { EpdsDb } from '@certified-app/shared'
 
 describe('sendVerificationOTP client branding via auth_flow', () => {
-  let db: MagicPdsDb
+  let db: EpdsDb
   let dbPath: string
 
   beforeEach(() => {
     dbPath = path.join(os.tmpdir(), `test-ba-otp-${Date.now()}.db`)
-    db = new MagicPdsDb(dbPath)
+    db = new EpdsDb(dbPath)
   })
 
   afterEach(() => {

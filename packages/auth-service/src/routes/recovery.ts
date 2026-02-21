@@ -16,8 +16,8 @@
  */
 import { Router, type Request, type Response } from 'express'
 import type { AuthServiceContext } from '../context.js'
-import { createLogger } from '@magic-pds/shared'
-import { escapeHtml, maskEmail } from '@magic-pds/shared'
+import { createLogger } from '@certified-app/shared'
+import { escapeHtml, maskEmail } from '@certified-app/shared'
 
 const logger = createLogger('auth:recovery')
 

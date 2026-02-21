@@ -8,9 +8,9 @@ Pnpm monorepo with three packages:
 
 | Package | Path | Description |
 |---------|------|-------------|
-| `@magic-pds/shared` | `packages/shared/` | SQLite DB, crypto utils, logger, types |
-| `@magic-pds/auth-service` | `packages/auth-service/` | Login UI, OTP, social login, account settings |
-| `@magic-pds/pds-core` | `packages/pds-core/` | Wraps `@atproto/pds` with magic-callback endpoint |
+| `@certified-app/shared` | `packages/shared/` | SQLite DB, crypto utils, logger, types |
+| `@certified-app/auth-service` | `packages/auth-service/` | Login UI, OTP, social login, account settings |
+| `@certified-app/pds-core` | `packages/pds-core/` | Wraps `@atproto/pds` with magic-callback endpoint |
 
 ## Build / Dev Commands
 
@@ -46,7 +46,7 @@ script — all tests are run from the root via vitest.
 
 ```bash
 # Build images (use --no-cache for pds-core — cache busting is broken)
-docker build --no-cache -f Dockerfile.pds -t magic-pds .
+docker build --no-cache -f Dockerfile.pds -t epds .
 docker build -f Dockerfile.auth -t magic-auth .
 
 # Run the full stack
@@ -79,13 +79,13 @@ Order (no enforced linter, but follow this convention):
 1. Node built-ins (`node:crypto`, `node:path`, etc.) — always use the `node:`
    prefix
 2. External packages
-3. Internal workspace packages (`@magic-pds/shared`)
+3. Internal workspace packages (`@certified-app/shared`)
 4. Local relative imports (with `.js` extension)
 
 ```ts
 import * as crypto from 'node:crypto'
 import express from 'express'
-import { createLogger } from '@magic-pds/shared'
+import { createLogger } from '@certified-app/shared'
 import { AuthServiceContext } from './context.js'
 ```
 
@@ -127,13 +127,13 @@ import { AuthServiceContext } from './context.js'
 ### HTML / Templates
 
 - Server-rendered HTML uses template literal functions (e.g. `renderLoginPage()`).
-- Always escape user input with `escapeHtml()` from `@magic-pds/shared`.
+- Always escape user input with `escapeHtml()` from `@certified-app/shared`.
 - CSS classes control visibility (`hidden`, `active`) — avoid inline `display`
   style except for dynamic values set at render time.
 
 ## Database
 
-- SQLite via `better-sqlite3`. All DB access goes through `MagicPdsDb`
+- SQLite via `better-sqlite3`. All DB access goes through `EpdsDb`
   (`packages/shared/src/db.ts`).
 - Schema changes use versioned migrations in `runMigrations()`.
 - Do **not** directly read or modify `@atproto/pds` database tables — use
@@ -142,7 +142,7 @@ import { AuthServiceContext } from './context.js'
 ## Security
 
 - All magic-callback redirects must be HMAC-SHA256 signed using
-  `signCallback()` / `verifyCallback()` from `@magic-pds/shared`.
+  `signCallback()` / `verifyCallback()` from `@certified-app/shared`.
 - Use `timingSafeEqual()` for all secret/token comparisons.
 - OTP codes: 8-digit, single-use, managed by better-auth.
 - Internal service-to-service calls use `x-internal-secret` header.

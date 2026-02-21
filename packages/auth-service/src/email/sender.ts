@@ -1,8 +1,8 @@
 import * as nodemailer from 'nodemailer'
-import { createLogger } from '@magic-pds/shared'
+import { createLogger } from '@certified-app/shared'
 import type { Transporter, SentMessageInfo } from 'nodemailer'
-import type { EmailConfig } from '@magic-pds/shared'
-import { escapeHtml } from '@magic-pds/shared'
+import type { EmailConfig } from '@certified-app/shared'
+import { escapeHtml } from '@certified-app/shared'
 import { resolveClientMetadata } from '../lib/client-metadata.js'
 
 const logger = createLogger('auth:email')

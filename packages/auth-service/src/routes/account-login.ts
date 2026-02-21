@@ -14,7 +14,7 @@
  * forms that orchestrate those calls.
  */
 import { Router, type Request, type Response } from 'express'
-import { escapeHtml, maskEmail, createLogger } from '@magic-pds/shared'
+import { escapeHtml, maskEmail, createLogger } from '@certified-app/shared'
 import { fromNodeHeaders } from 'better-auth/node'
 
 const logger = createLogger('auth:account-login')

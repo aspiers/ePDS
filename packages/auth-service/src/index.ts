@@ -1,4 +1,4 @@
-import { createLogger } from '@magic-pds/shared'
+import { createLogger } from '@certified-app/shared'
 import express from 'express'
 import cookieParser from 'cookie-parser'
 import * as path from 'node:path'
@@ -116,9 +116,9 @@ async function main() {
       smtpUser: process.env.SMTP_USER || undefined,
       smtpPass: process.env.SMTP_PASS || undefined,
       from: process.env.SMTP_FROM || 'noreply@localhost',
-      fromName: process.env.SMTP_FROM_NAME || 'Magic PDS',
+      fromName: process.env.SMTP_FROM_NAME || 'ePDS',
     },
-    dbLocation: process.env.DB_LOCATION || './data/magic-pds.sqlite',
+    dbLocation: process.env.DB_LOCATION || './data/epds.sqlite',
   }
 
   await runBetterAuthMigrations(config.dbLocation, config.hostname)

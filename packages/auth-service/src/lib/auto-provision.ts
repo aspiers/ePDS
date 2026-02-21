@@ -1,5 +1,5 @@
 import type { AuthServiceContext } from '../context.js'
-import { createLogger, generateRandomHandle } from '@magic-pds/shared'
+import { createLogger, generateRandomHandle } from '@certified-app/shared'
 
 const logger = createLogger('auth:auto-provision')
 

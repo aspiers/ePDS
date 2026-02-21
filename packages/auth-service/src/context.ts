@@ -1,5 +1,5 @@
-import { createLogger } from '@magic-pds/shared'
-import { MagicPdsDb } from '@magic-pds/shared'
+import { createLogger } from '@certified-app/shared'
+import { EpdsDb } from '@certified-app/shared'
 import { EmailSender } from './email/sender.js'
 
 export interface AuthServiceConfig {
@@ -26,13 +26,13 @@ export interface AuthServiceConfig {
 const logger = createLogger('auth-service')
 
 export class AuthServiceContext {
-  public readonly db: MagicPdsDb
+  public readonly db: EpdsDb
   public readonly emailSender: EmailSender
   public readonly config: AuthServiceConfig
 
   constructor(config: AuthServiceConfig) {
     this.config = config
-    this.db = new MagicPdsDb(config.dbLocation)
+    this.db = new EpdsDb(config.dbLocation)
     this.emailSender = new EmailSender(config.email)
 
     // Cleanup expired tokens every 5 minutes

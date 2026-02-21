@@ -1,8 +1,8 @@
 import { Router, type Request, type Response } from 'express'
 import type { AuthServiceContext } from '../context.js'
 import { resolveClientName } from '../lib/client-metadata.js'
-import { escapeHtml, signCallback } from '@magic-pds/shared'
-import { createLogger } from '@magic-pds/shared'
+import { escapeHtml, signCallback } from '@certified-app/shared'
+import { createLogger } from '@certified-app/shared'
 
 const logger = createLogger('auth:consent')
 

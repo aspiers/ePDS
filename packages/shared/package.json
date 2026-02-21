@@ -1,5 +1,5 @@
 {
-  "name": "@magic-pds/shared",
+  "name": "@certified-app/shared",
   "version": "0.1.0",
   "private": true,
   "main": "dist/index.js",

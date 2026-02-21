@@ -24,7 +24,7 @@ import { Router, type Request, type Response } from 'express'
 import { randomBytes } from 'node:crypto'
 import type { AuthServiceContext } from '../context.js'
 import { resolveClientMetadata, resolveClientName, type ClientMetadata } from '../lib/client-metadata.js'
-import { escapeHtml, createLogger } from '@magic-pds/shared'
+import { escapeHtml, createLogger } from '@certified-app/shared'
 import { socialProviders } from '../better-auth.js'
 
 const logger = createLogger('auth:login-page')

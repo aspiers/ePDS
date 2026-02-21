@@ -1,4 +1,4 @@
-export { MagicPdsDb } from './db.js'
+export { EpdsDb } from './db.js'
 export type {
   MagicLinkTokenRow,
   BackupEmailRow,

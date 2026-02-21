@@ -12,15 +12,15 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
-import { MagicPdsDb } from '@magic-pds/shared'
+import { EpdsDb } from '@certified-app/shared'
 
 describe('Recovery flow: backup email lookup', () => {
-  let db: MagicPdsDb
+  let db: EpdsDb
   let dbPath: string
 
   beforeEach(() => {
     dbPath = path.join(os.tmpdir(), `test-recovery-${Date.now()}.db`)
-    db = new MagicPdsDb(dbPath)
+    db = new EpdsDb(dbPath)
   })
 
   afterEach(() => {
@@ -60,12 +60,12 @@ describe('Recovery flow: backup email lookup', () => {
 })
 
 describe('Recovery flow: auth_flow creation for request_uri threading', () => {
-  let db: MagicPdsDb
+  let db: EpdsDb
   let dbPath: string
 
   beforeEach(() => {
     dbPath = path.join(os.tmpdir(), `test-recovery-flow-${Date.now()}.db`)
-    db = new MagicPdsDb(dbPath)
+    db = new EpdsDb(dbPath)
   })
 
   afterEach(() => {
@@ -134,12 +134,12 @@ describe('Recovery flow: OTP pattern (8 digits)', () => {
 })
 
 describe('Recovery flow: /auth/complete bridge integration', () => {
-  let db: MagicPdsDb
+  let db: EpdsDb
   let dbPath: string
 
   beforeEach(() => {
     dbPath = path.join(os.tmpdir(), `test-recovery-bridge-${Date.now()}.db`)
-    db = new MagicPdsDb(dbPath)
+    db = new EpdsDb(dbPath)
   })
 
   afterEach(() => {

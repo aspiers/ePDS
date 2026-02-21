@@ -1,8 +1,8 @@
 import { Router, type Request, type Response, type NextFunction } from 'express'
 import type { AuthServiceContext } from '../context.js'
-import { createLogger } from '@magic-pds/shared'
-import { hashToken, generateMagicLinkToken } from '@magic-pds/shared'
-import { escapeHtml } from '@magic-pds/shared'
+import { createLogger } from '@certified-app/shared'
+import { hashToken, generateMagicLinkToken } from '@certified-app/shared'
+import { escapeHtml } from '@certified-app/shared'
 import { fromNodeHeaders } from 'better-auth/node'
 
 const logger = createLogger('auth:account-settings')

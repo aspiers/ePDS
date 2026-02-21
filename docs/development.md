@@ -53,9 +53,9 @@ See [deployment.md](deployment.md) for more details on Docker usage.
 
 ```
 packages/
-  shared/         # @magic-pds/shared — DB, crypto, logger, types
-  auth-service/   # @magic-pds/auth-service — login UI, OTP, social login
-  pds-core/       # @magic-pds/pds-core — @atproto/pds wrapper
+  shared/         # @certified-app/shared — DB, crypto, logger, types
+  auth-service/   # @certified-app/auth-service — login UI, OTP, social login
+  pds-core/       # @certified-app/pds-core — @atproto/pds wrapper
 ```
 
 ## Testing

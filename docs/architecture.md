@@ -45,9 +45,9 @@ endpoint to issue an AT Protocol authorization code.
 
 | Package | Description |
 |---------|-------------|
-| `@magic-pds/shared` | Database (SQLite), crypto utilities, types, logger |
-| `@magic-pds/auth-service` | Auth UI, OTP code flow via better-auth, account settings |
-| `@magic-pds/pds-core` | Wraps `@atproto/pds` with magic-callback integration |
+| `@certified-app/shared` | Database (SQLite), crypto utilities, types, logger |
+| `@certified-app/auth-service` | Auth UI, OTP code flow via better-auth, account settings |
+| `@certified-app/pds-core` | Wraps `@atproto/pds` with magic-callback integration |
 
 ## Key Design Decisions
 

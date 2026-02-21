@@ -13,8 +13,8 @@ import Database from 'better-sqlite3'
 import { betterAuth } from 'better-auth'
 import { getMigrations } from 'better-auth/db'
 import { emailOTP } from 'better-auth/plugins'
-import { createLogger } from '@magic-pds/shared'
-import type { MagicPdsDb } from '@magic-pds/shared'
+import { createLogger } from '@certified-app/shared'
+import type { EpdsDb } from '@certified-app/shared'
 import type { EmailSender } from './email/sender.js'
 
 const logger = createLogger('auth:better-auth')
@@ -47,7 +47,7 @@ function buildSocialProviders(): Record<string, { clientId: string; clientSecret
 export let socialProviders: Record<string, { clientId: string; clientSecret: string }> = {}
 
 /**
- * Create a better-auth instance wired to the given EmailSender and MagicPdsDb.
+ * Create a better-auth instance wired to the given EmailSender and EpdsDb.
  *
  * Called once during app startup from index.ts.
  * Returns `unknown` to avoid leaking the better-sqlite3 type into declaration files;
@@ -89,8 +89,8 @@ export async function runBetterAuthMigrations(dbLocation: string, authHostname: 
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function createBetterAuth(emailSender: EmailSender, db: MagicPdsDb): any {
-  const dbLocation = process.env.DB_LOCATION ?? './data/magic-pds.sqlite'
+export function createBetterAuth(emailSender: EmailSender, db: EpdsDb): any {
+  const dbLocation = process.env.DB_LOCATION ?? './data/epds.sqlite'
   const authHostname = process.env.AUTH_HOSTNAME ?? 'auth.localhost'
   const pdsName = process.env.SMTP_FROM_NAME ?? 'Magic PDS'
   const pdsDomain = process.env.PDS_HOSTNAME ?? 'localhost'

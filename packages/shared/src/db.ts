@@ -40,7 +40,7 @@ export interface AuthFlowRow {
   expiresAt: number
 }
 
-export class MagicPdsDb {
+export class EpdsDb {
   private db: Database.Database
 
   constructor(dbLocation: string) {

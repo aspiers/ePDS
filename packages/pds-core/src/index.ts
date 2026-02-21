@@ -1,5 +1,5 @@
 /**
- * Magic PDS Core
+ * ePDS Core
  *
  * Wraps the stock @atproto/pds with:
  * - OAuth /magic-callback endpoint that issues authorization codes directly
@@ -19,7 +19,7 @@ dotenv.config()
 import * as http from 'node:http'
 import { randomBytes } from 'node:crypto'
 import { PDS, envToCfg, envToSecrets, readEnv } from '@atproto/pds'
-import { generateRandomHandle, createLogger, verifyCallback } from '@magic-pds/shared'
+import { generateRandomHandle, createLogger, verifyCallback } from '@certified-app/shared'
 
 const logger = createLogger('pds-core')
 
@@ -315,14 +315,14 @@ async function main() {
   })
 
   pds.app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', service: 'magic-pds' })
+    res.json({ status: 'ok', service: 'epds' })
   })
 
   await pds.start()
-  logger.info({ port: cfg.service.port, pdsUrl, authHostname }, 'Magic PDS running')
+  logger.info({ port: cfg.service.port, pdsUrl, authHostname }, 'ePDS running')
 
   const shutdown = async () => {
-    logger.info('Magic PDS shutting down')
+    logger.info('ePDS shutting down')
     await pds.destroy()
     process.exit(0)
   }
@@ -332,6 +332,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  logger.fatal({ err }, 'Failed to start Magic PDS')
+  logger.fatal({ err }, 'Failed to start ePDS')
   process.exit(1)
 })

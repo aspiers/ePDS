@@ -21,7 +21,7 @@ importers:
 
   packages/auth-service:
     dependencies:
-      '@magic-pds/shared':
+      '@certified-app/shared':
         specifier: workspace:*
         version: link:../shared
       better-auth:
@@ -76,12 +76,12 @@ importers:
       '@atproto/pds':
         specifier: ^0.4.209
         version: 0.4.211
+      '@certified-app/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@did-plc/lib':
         specifier: ^0.0.4
         version: 0.0.4
-      '@magic-pds/shared':
-        specifier: workspace:*
-        version: link:../shared
       dotenv:
         specifier: ^16.3.1
         version: 16.6.1

@@ -19,7 +19,7 @@
  */
 import { Router, type Request, type Response } from 'express'
 import type { AuthServiceContext } from '../context.js'
-import { createLogger, signCallback } from '@magic-pds/shared'
+import { createLogger, signCallback } from '@certified-app/shared'
 import { fromNodeHeaders } from 'better-auth/node'
 
 const logger = createLogger('auth:complete')
