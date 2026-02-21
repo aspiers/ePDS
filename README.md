@@ -1,19 +1,17 @@
-# Magic PDS
+# ePDS
 
-A passwordless [AT Protocol](https://atproto.com/) Personal Data Server (PDS) that replaces password-based authentication with email OTP codes.
-
-**Live at:** `pds.certs.network`
+An [AT Protocol](https://atproto.com/) Personal Data Server (PDS) with a pluggable authentication layer powered by [Better Auth](https://www.better-auth.com/). Supports email OTP, social login (Google, GitHub), and any other mechanism Better Auth provides — configured per deployment.
 
 ## Architecture
 
 ```
                   +-----------------+
                   |   OAuth Client  |
-                  | (maearth-demo,  |
-                  |  Bluesky, etc.) |
+                  | (Bluesky, custom|
+                  |   apps, etc.)   |
                   +-------+---------+
                           |
-                   1. PAR  |  7. Token exchange
+                   1. PAR  |  8. Token exchange
                           v
            +-----------------------------+
            |          PDS Core           |
@@ -21,42 +19,46 @@ A passwordless [AT Protocol](https://atproto.com/) Personal Data Server (PDS) th
            |   magic-callback endpoint)  |
            +-----------------------------+
                    |             ^
-   2. AS metadata  |             | 6. Auth code issued
+   2. AS metadata  |             | 7. Auth code issued
    redirects to    |             |    via /oauth/magic-callback
    auth subdomain  v             |
            +-----------------------------+
            |        Auth Service         |
            |  /oauth/authorize           |
-           |  /auth/send-code            |
-           |  /auth/verify-code          |
-           |  /auth/consent              |
+           |  /auth/complete             |
            |  /account/* (settings)      |
+           |  (better-auth OTP backend)  |
            +-----------------------------+
                           |
-              3-5. Email  |  OTP code flow
+              3-6. Email  |  OTP code flow
                           v
                      User's inbox
 ```
 
 ### OAuth Flow
 
-1. **Client sends PAR** to PDS (stock AT Protocol behavior)
+1. **Client sends PAR** to PDS (stock AT Protocol behaviour)
 2. **PDS AS metadata** points `authorization_endpoint` to the auth subdomain
-3. **Auth service** shows email input form
-4. **OTP code email** sent to user (6-digit code)
-5. **User enters code** — verified, consent shown
-6. **User approves** — redirected to PDS `/oauth/magic-callback`
-7. **PDS creates account** (if new) and **issues authorization code**
+3. **Auth service** renders login page (email input, or OTP step directly if `login_hint` provided)
+4. **OTP email sent** to user (8-digit code, via better-auth)
+5. **User enters code** — verified by better-auth
+6. **better-auth** redirects to `/auth/complete`
+7. **Auth service** creates PDS account (if new) and issues authorization code via magic-callback
 8. **Client exchanges code** for tokens (standard OAuth)
 
-Users get a random handle (e.g., `a3x9kf.pds.certs.network`) — no email-derived handles for privacy.
+There are two supported login flows for client apps:
+
+- **Flow 1** — App has its own email form: collect email, pass as `login_hint` to PAR, auth server skips email step and goes straight to OTP input
+- **Flow 2** — App has a simple "Login" button: no email collected, auth server shows email input form itself
+
+Users get a random handle (e.g., `a3x9kf.epds-poc1.test.certified.app`) — no email-derived handles for privacy.
 
 ## Packages
 
 | Package | Description |
 |---------|-------------|
 | `@magic-pds/shared` | Database (SQLite), crypto utilities, types, logger |
-| `@magic-pds/auth-service` | Auth UI, OTP code flow, account settings |
+| `@magic-pds/auth-service` | Auth UI, OTP code flow via better-auth, account settings |
 | `@magic-pds/pds-core` | Wraps `@atproto/pds` with magic link integration |
 
 ## Quick Start
@@ -64,16 +66,16 @@ Users get a random handle (e.g., `a3x9kf.pds.certs.network`) — no email-derive
 ### Prerequisites
 
 - Node.js >= 18.7.0
-- pnpm 8+
+- pnpm 9+
 - OpenSSL (for key generation)
 
 ### Setup
 
 ```bash
 # Clone and install
-git clone <repo-url> magic-pds
-cd magic-pds
-./scripts/setup.sh
+git clone <repo-url> epds
+cd epds
+pnpm install
 
 # Generate a PLC rotation key
 openssl ecparam -name secp256k1 -genkey -noout | \
@@ -92,11 +94,10 @@ openssl ecparam -name secp256k1 -genkey -noout | \
 ./scripts/dev.sh
 ```
 
-This starts both services with `NODE_ENV=development` (disables secure cookies, uses `PDS_DEV_MODE=true`).
+This starts both services with `NODE_ENV=development` (disables secure cookies).
 
 - PDS: http://localhost:3000
 - Auth: http://localhost:3001
-- MailHog (if Docker available): http://localhost:8025
 
 ### Production Deployment (Docker)
 
@@ -106,9 +107,9 @@ docker compose up -d
 
 # Caddy handles TLS automatically
 # Ensure DNS points:
-#   pds.example    -> your server
+#   pds.example      -> your server
 #   auth.pds.example -> your server
-#   *.pds.example  -> your server (for handle resolution)
+#   *.pds.example    -> your server (for handle resolution)
 ```
 
 ## Configuration
@@ -117,39 +118,34 @@ See [`.env.example`](.env.example) for all configuration options. Key settings:
 
 | Variable | Description |
 |----------|-------------|
-| `PDS_HOSTNAME` | Your PDS domain (e.g., `pds.certs.network`) |
-| `AUTH_HOSTNAME` | Auth subdomain (e.g., `auth.pds.certs.network`) |
-| `EMAIL_PROVIDER` | `smtp`, `sendgrid`, `ses`, or `postmark` |
+| `PDS_HOSTNAME` | Your PDS domain (e.g., `epds-poc1.test.certified.app`) |
+| `AUTH_HOSTNAME` | Auth subdomain (e.g., `auth.epds-poc1.test.certified.app`) |
+| `SMTP_HOST` | SMTP server hostname (e.g., `smtp.resend.com`) |
+| `SMTP_PORT` | SMTP port (e.g., `465`) |
+| `SMTP_USER` | SMTP username |
+| `SMTP_PASS` | SMTP password / API key |
+| `SMTP_FROM` | From address (must be on a verified domain) |
+| `MAGIC_INVITE_CODE` | Pre-generated invite code for account creation (required if `PDS_INVITE_REQUIRED=true`) |
 | `PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX` | secp256k1 private key |
 
-### Email Providers
+### Generating an Invite Code
 
-- **SMTP**: Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`
-- **SendGrid**: Set `SENDGRID_API_KEY`
-- **AWS SES**: Set `AWS_SES_SMTP_USER`, `AWS_SES_SMTP_PASS`, `AWS_REGION`
-- **Postmark**: Set `POSTMARK_SERVER_TOKEN`
-
-## Testing
+If `PDS_INVITE_REQUIRED` is true (the default), generate a high-useCount invite code via the PDS admin API and set it as `MAGIC_INVITE_CODE`:
 
 ```bash
-pnpm test           # run tests once
-pnpm test:watch     # watch mode
+curl -X POST https://<pds-hostname>/xrpc/com.atproto.server.createInviteCode \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Basic $(echo -n 'admin:<PDS_ADMIN_PASSWORD>' | base64)" \
+  -d '{"useCount": 1000}'
 ```
 
 ## Security
 
-- OTP codes: 6-digit, SHA-256 hashed in DB, single-use, 10-minute expiry
+- OTP codes: 8-digit, managed by better-auth, single-use, short expiry
 - CSRF protection on all forms
-- Rate limiting: per-email, per-IP (DB-backed), plus request-level (in-memory)
-- Anti-enumeration: same response regardless of account existence
-- Timing-safe token comparison
+- Accounts created with a random unguessable password (login only possible via OTP flow)
 - HttpOnly, SameSite cookies
-- Security headers: HSTS, CSP, X-Frame-Options, X-Content-Type-Options
-
-## Related
-
-- [maearth-demo](https://github.com/holkexyz/maearth-demo) — Demo app with OAuth login + wallet UI
-- [magic-wallet](https://github.com/holkexyz/magic-wallet) — Embedded Ethereum wallet service
+- Security headers: HSTS, X-Frame-Options, X-Content-Type-Options
 
 ## License
 
