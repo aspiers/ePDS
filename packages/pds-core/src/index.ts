@@ -17,6 +17,7 @@ import * as dotenv from 'dotenv'
 dotenv.config()
 
 import * as http from 'node:http'
+import { randomBytes } from 'node:crypto'
 import { PDS, envToCfg, envToSecrets, readEnv } from '@atproto/pds'
 import { generateRandomHandle, createLogger, verifyCallback } from '@magic-pds/shared'
 
@@ -144,11 +145,14 @@ async function main() {
                 locale: 'en',
                 handle,
                 email,
-                // Passwordless: the PDS accountManager accepts password: undefined,
-                // creating a passwordless account that can't be used with createSession.
-                // The SignUpInput type requires password, but we bypass it here since
-                // we call the method directly (no schema validation at the call site).
-                password: undefined as unknown as string,
+                // Use a random unguessable password so the PDS creates a proper account
+                // row (registerAccount requires a password). The password is never
+                // returned or stored anywhere accessible, so the account is effectively
+                // passwordless — login is only possible via the magic OTP flow.
+                password: randomBytes(32).toString('hex'),
+                // Invite code is required when PDS_INVITE_REQUIRED is true (the default).
+                // MAGIC_INVITE_CODE should be a high-useCount code generated via the admin API.
+                inviteCode: process.env.MAGIC_INVITE_CODE,
               },
             )
             did = account.sub
