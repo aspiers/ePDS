@@ -1,0 +1,44 @@
+# Dockerfile for the demo frontend (Next.js standalone build).
+# Unlike the other services, this is a Next.js app — it uses `next build`
+# with output: "standalone" and then runs the self-contained server.
+
+# -- Base --
+FROM node:20-alpine AS base
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+WORKDIR /app
+
+# Copy only what pnpm needs to resolve the workspace
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY packages/demo/package.json packages/demo/
+
+# Stub out the other workspace packages so pnpm install doesn't fail
+# (pnpm-workspace.yaml references packages/*, but we only need demo)
+COPY packages/shared/package.json packages/shared/
+COPY packages/auth-service/package.json packages/auth-service/
+COPY packages/pds-core/package.json packages/pds-core/
+
+# -- Dependencies --
+FROM base AS deps
+RUN pnpm install --frozen-lockfile
+
+# -- Build --
+FROM deps AS build
+COPY packages/demo/ packages/demo/
+COPY tsconfig.json ./
+RUN pnpm --filter @certified-app/demo build
+
+# -- Production --
+FROM node:20-alpine
+RUN addgroup -g 1001 appuser && adduser -u 1001 -G appuser -D appuser
+WORKDIR /app
+
+# Next.js standalone output includes everything needed to run
+COPY --from=build /app/packages/demo/.next/standalone ./
+COPY --from=build /app/packages/demo/.next/static ./packages/demo/.next/static
+COPY --from=build /app/packages/demo/public ./packages/demo/public
+
+USER appuser
+EXPOSE 3002
+ENV PORT=3002
+ENV HOSTNAME=0.0.0.0
+CMD ["node", "packages/demo/server.js"]

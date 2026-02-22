@@ -54,6 +54,22 @@ services:
       auth:
         condition: service_healthy
 
+  # Demo frontend (tutorial scaffold)
+  demo:
+    build:
+      context: .
+      dockerfile: Dockerfile.demo
+    ports:
+      - '${DEMO_PORT:-3002}:3002'
+    environment:
+      - PUBLIC_URL=http://localhost:3002
+      - PDS_URL=https://${PDS_HOSTNAME:-pds.example}
+      - AUTH_ENDPOINT=https://auth.${PDS_HOSTNAME:-pds.example}/oauth/authorize
+    restart: unless-stopped
+    depends_on:
+      core:
+        condition: service_healthy
+
   # Local email trap for development
   mailhog:
     image: mailhog/mailhog:latest

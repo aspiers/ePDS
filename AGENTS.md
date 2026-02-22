@@ -21,6 +21,7 @@ pnpm typecheck             # type-check without emitting
 pnpm dev                   # run all packages in dev/watch mode
 pnpm dev:auth              # auth-service only (tsx watch)
 pnpm dev:pds               # pds-core only (tsx watch)
+pnpm dev:demo              # demo frontend only (Next.js, port 3002)
 pnpm format                # format all files with Prettier
 pnpm format:check          # check formatting (CI)
 pnpm lint                  # lint all files with ESLint
@@ -60,7 +61,8 @@ sudo -g docker bash -c "cd /data/projects/ePDS && docker compose logs -f"
 sudo -g docker bash -c "cd /data/projects/ePDS && docker compose up -d"
 ```
 
-Container names: `epds-core` (PDS, port 3000) and `epds-auth` (auth service, port 3001).
+Container names: `epds-core` (PDS, port 3000), `epds-auth` (auth service, port 3001),
+and `epds-demo` (demo frontend, port 3002).
 
 ## Code Style
 
