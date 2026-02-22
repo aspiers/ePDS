@@ -277,11 +277,9 @@ function renderLoginPage(opts: {
     <!-- Step 2: OTP entry (calls better-auth verifyOtp) -->
     <div id="step-otp" class="step-otp${opts.initialStep === 'otp' ? ' active' : ''}">
       <p class="subtitle" id="otp-subtitle">${
-        opts.initialStep === 'otp'
-          ? opts.otpAlreadySent
-            ? `Code already sent to ${escapeHtml(opts.loginHint.replace(/(.{2})[^@]*(@.*)/, '$1***$2'))}`
-            : `Sending code to ${escapeHtml(opts.loginHint.replace(/(.{2})[^@]*(@.*)/, '$1***$2'))}…`
-          : 'We sent a code to your email'
+        opts.initialStep === 'otp' && opts.otpAlreadySent
+          ? `Code already sent to ${escapeHtml(opts.loginHint.replace(/(.{2})[^@]*(@.*)/, '$1***$2'))}`
+          : ''
       }</p>
       <form id="form-verify-otp">
         <input type="hidden" id="otp-email" name="email" value="${escapeHtml(opts.loginHint)}">
