@@ -6,7 +6,7 @@ description: Implement AT Protocol OAuth login against an ePDS instance. Use whe
 # Implementing ePDS Login
 
 ePDS uses standard AT Protocol OAuth (PAR + PKCE + DPoP) with email OTP authentication.
-The reference implementation is `packages/demo` in this repo.
+The reference implementation is `packages/demo` in the [ePDS repository](https://github.com/hypercerts-org/ePDS).
 
 ## Two Flows
 
