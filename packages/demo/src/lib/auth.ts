@@ -8,7 +8,9 @@
 import * as crypto from 'crypto'
 
 export function getBaseUrl(): string {
-  return (process.env.PUBLIC_URL || 'http://localhost:3002').trim()
+  return (process.env.PUBLIC_URL || 'http://localhost:3002')
+    .trim()
+    .replace(/\/+$/, '')
 }
 
 // PKCE helpers
