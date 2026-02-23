@@ -66,10 +66,10 @@ export async function GET(request: Request) {
     // Note: email and handle are both optional — omitting both triggers Flow 2
     // (auth server collects the email itself via its own form).
     if (email && !validateEmail(email)) {
-      return NextResponse.redirect(new URL('/?error=auth_failed', baseUrl))
+      return NextResponse.redirect(new URL('/?error=invalid_email', baseUrl))
     }
     if (handle && !validateHandle(handle)) {
-      return NextResponse.redirect(new URL('/?error=auth_failed', baseUrl))
+      return NextResponse.redirect(new URL('/?error=invalid_handle', baseUrl))
     }
 
     // Determine endpoints: dynamic for handle, hardcoded for email
@@ -146,11 +146,12 @@ export async function GET(request: Request) {
     const oauthCookie = createOAuthSessionCookie(sessionData)
 
     if (!parRes.ok) {
-      console.error('[oauth/login] PAR failed:', parRes.status)
+      const parErrBody = await parRes.text()
+      console.error('[oauth/login] PAR failed:', parRes.status, parErrBody)
 
       // Check for DPoP nonce requirement
       const dpopNonce = parRes.headers.get('dpop-nonce')
-      if (dpopNonce && parRes.status === 400) {
+      if (dpopNonce) {
         console.log('[oauth/login] Retrying with DPoP nonce')
         const dpopProof2 = createDpopProof({
           privateKey,
@@ -170,8 +171,13 @@ export async function GET(request: Request) {
         })
 
         if (!parRes2.ok) {
-          console.error('[oauth/login] PAR retry failed:', parRes2.status)
-          return NextResponse.redirect(new URL('/?error=auth_failed', baseUrl))
+          const retryErrBody = await parRes2.text()
+          console.error(
+            '[oauth/login] PAR retry failed:',
+            parRes2.status,
+            retryErrBody,
+          )
+          return NextResponse.redirect(new URL('/?error=par_failed', baseUrl))
         }
 
         const parData2 = (await parRes2.json()) as { request_uri: string }
@@ -191,7 +197,7 @@ export async function GET(request: Request) {
         return resp2
       }
 
-      return NextResponse.redirect(new URL('/?error=auth_failed', baseUrl))
+      return NextResponse.redirect(new URL('/?error=par_failed', baseUrl))
     }
 
     const parData = (await parRes.json()) as { request_uri: string }
