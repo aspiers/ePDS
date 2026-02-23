@@ -6,16 +6,16 @@ description: Implement AT Protocol OAuth login against an ePDS instance. Use whe
 # Implementing ePDS Login
 
 ePDS uses standard AT Protocol OAuth (PAR + PKCE + DPoP) with email OTP authentication.
-The reference implementation is [maearth-demo](https://github.com/hypercerts-org/maearth-demo).
+The reference implementation is `packages/demo` in this repo.
 
 ## Two Flows
 
-| | Flow 1 | Flow 2 |
-|---|---|---|
-| **App collects email?** | Yes | No |
-| **PAR includes** | `login_hint=<email>` | Nothing extra |
-| **Auth server shows** | OTP input directly | Email form first |
-| **Redirect includes** | `&login_hint=<email>` | Nothing extra |
+|                         | Flow 1                | Flow 2           |
+| ----------------------- | --------------------- | ---------------- |
+| **App collects email?** | Yes                   | No               |
+| **PAR includes**        | `login_hint=<email>`  | Nothing extra    |
+| **Auth server shows**   | OTP input directly    | Email form first |
+| **Redirect includes**   | `&login_hint=<email>` | Nothing extra    |
 
 ## Quick Start
 
@@ -58,14 +58,21 @@ const parBody = new URLSearchParams({
   state,
   code_challenge: codeChallenge,
   code_challenge_method: 'S256',
-  ...(email ? { login_hint: email } : {}),  // Flow 1 only
+  ...(email ? { login_hint: email } : {}), // Flow 1 only
 })
 
 // PAR always requires a DPoP nonce retry — handle it:
 let parRes = await fetch(PAR_ENDPOINT, {
   method: 'POST',
-  headers: { 'Content-Type': 'application/x-www-form-urlencoded',
-             DPoP: createDpopProof({ privateKey, jwk: publicJwk, method: 'POST', url: PAR_ENDPOINT }) },
+  headers: {
+    'Content-Type': 'application/x-www-form-urlencoded',
+    DPoP: createDpopProof({
+      privateKey,
+      jwk: publicJwk,
+      method: 'POST',
+      url: PAR_ENDPOINT,
+    }),
+  },
   body: parBody.toString(),
 })
 if (!parRes.ok) {
@@ -73,8 +80,16 @@ if (!parRes.ok) {
   if (nonce && parRes.status === 400) {
     parRes = await fetch(PAR_ENDPOINT, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded',
-                 DPoP: createDpopProof({ privateKey, jwk: publicJwk, method: 'POST', url: PAR_ENDPOINT, nonce }) },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        DPoP: createDpopProof({
+          privateKey,
+          jwk: publicJwk,
+          method: 'POST',
+          url: PAR_ENDPOINT,
+          nonce,
+        }),
+      },
       body: parBody.toString(),
     })
   }
@@ -93,7 +108,11 @@ const authUrl = `${AUTH_ENDPOINT}?client_id=${encodeURIComponent(clientId)}&requ
 ```typescript
 // GET /api/oauth/callback?code=...&state=...
 
-const { codeVerifier, dpopPrivateJwk, state: savedState } = getSessionFromCookie()
+const {
+  codeVerifier,
+  dpopPrivateJwk,
+  state: savedState,
+} = getSessionFromCookie()
 if (params.state !== savedState) throw new Error('state mismatch')
 
 const { privateKey, publicJwk } = restoreDpopKeyPair(dpopPrivateJwk)
@@ -101,18 +120,38 @@ const { privateKey, publicJwk } = restoreDpopKeyPair(dpopPrivateJwk)
 // Token exchange — also requires DPoP nonce retry:
 let tokenRes = await fetch(TOKEN_ENDPOINT, {
   method: 'POST',
-  headers: { 'Content-Type': 'application/x-www-form-urlencoded',
-             DPoP: createDpopProof({ privateKey, jwk: publicJwk, method: 'POST', url: TOKEN_ENDPOINT }) },
-  body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: redirectUri,
-                              client_id: clientId, code_verifier: codeVerifier }).toString(),
+  headers: {
+    'Content-Type': 'application/x-www-form-urlencoded',
+    DPoP: createDpopProof({
+      privateKey,
+      jwk: publicJwk,
+      method: 'POST',
+      url: TOKEN_ENDPOINT,
+    }),
+  },
+  body: new URLSearchParams({
+    grant_type: 'authorization_code',
+    code,
+    redirect_uri: redirectUri,
+    client_id: clientId,
+    code_verifier: codeVerifier,
+  }).toString(),
 })
 if (!tokenRes.ok) {
   const nonce = tokenRes.headers.get('dpop-nonce')
   if (nonce) {
     tokenRes = await fetch(TOKEN_ENDPOINT, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded',
-                 DPoP: createDpopProof({ privateKey, jwk: publicJwk, method: 'POST', url: TOKEN_ENDPOINT, nonce }) },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        DPoP: createDpopProof({
+          privateKey,
+          jwk: publicJwk,
+          method: 'POST',
+          url: TOKEN_ENDPOINT,
+          nonce,
+        }),
+      },
       body: /* same body */ '',
     })
   }
@@ -124,14 +163,21 @@ const { sub: userDid } = await tokenRes.json()
 
 ## Common Pitfalls
 
-| Pitfall | Fix |
-|---|---|
-| Flash of email form | Include `login_hint` in **both** PAR body **and** the auth redirect URL |
-| `auth_failed` immediately | Check Caddy logs — likely a DNS/upstream name mismatch |
-| DPoP rejected | Always implement the nonce retry loop (ePDS always demands a nonce) |
-| `Cannot find package` in tests | Run `pnpm build` before `pnpm test` — vitest needs `dist/` |
-| Token exchange fails | Restore the DPoP key pair from the session cookie, don't generate a new one |
-| Double OTP email | Normal on duplicate GET — `otpAlreadySent` flag suppresses auto-send on reload |
+| Pitfall                        | Fix                                                                            |
+| ------------------------------ | ------------------------------------------------------------------------------ |
+| Flash of email form            | Include `login_hint` in **both** PAR body **and** the auth redirect URL        |
+| `auth_failed` immediately      | Check Caddy logs — likely a DNS/upstream name mismatch                         |
+| DPoP rejected                  | Always implement the nonce retry loop (ePDS always demands a nonce)            |
+| `Cannot find package` in tests | Run `pnpm build` before `pnpm test` — vitest needs `dist/`                     |
+| Token exchange fails           | Restore the DPoP key pair from the session cookie, don't generate a new one    |
+| Double OTP email               | Normal on duplicate GET — `otpAlreadySent` flag suppresses auto-send on reload |
+
+## Handles
+
+ePDS generates random handles, not email-derived ones. When a user signs up
+with `alice@example.com`, their handle will be something like `a3x9kf.pds.example`
+(random prefix + PDS hostname), not `alice.pds.example`. Resolve the handle
+from the DID via the PLC directory after login (shown in the callback handler).
 
 ## ePDS Endpoints (defaults)
 
