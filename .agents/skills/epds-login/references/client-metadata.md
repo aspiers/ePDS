@@ -21,22 +21,22 @@ and the auth service uses it for branding (name, logo, email templates).
 
 ## All supported fields
 
-| Field | Required | Description |
-|---|---|---|
-| `client_id` | Yes | Must match the URL where this file is hosted |
-| `client_name` | Yes | Shown on the login page and in OTP emails |
-| `redirect_uris` | Yes | Array of allowed callback URLs after login |
-| `scope` | Yes | Always `"atproto transition:generic"` |
-| `grant_types` | Yes | Always `["authorization_code", "refresh_token"]` |
-| `response_types` | Yes | Always `["code"]` |
-| `token_endpoint_auth_method` | Yes | Always `"none"` (public client) |
-| `dpop_bound_access_tokens` | Yes | Always `true` |
-| `client_uri` | No | Your app's homepage URL |
-| `logo_uri` | No | URL to your app logo (shown on login page) |
-| `email_template_uri` | No | URL to a custom OTP email HTML template |
-| `email_subject_template` | No | Custom email subject line with `{{code}}` placeholder |
-| `brand_color` | No | Hex colour for buttons and input focus rings (default: `#1A130F`) |
-| `background_color` | No | Hex colour for the login page background (default: `#F2EBE4`) |
+| Field                        | Required | Description                                                       |
+| ---------------------------- | -------- | ----------------------------------------------------------------- |
+| `client_id`                  | Yes      | Must match the URL where this file is hosted                      |
+| `client_name`                | Yes      | Shown on the login page and in OTP emails                         |
+| `redirect_uris`              | Yes      | Array of allowed callback URLs after login                        |
+| `scope`                      | Yes      | Always `"atproto transition:generic"`                             |
+| `grant_types`                | Yes      | Always `["authorization_code", "refresh_token"]`                  |
+| `response_types`             | Yes      | Always `["code"]`                                                 |
+| `token_endpoint_auth_method` | Yes      | Always `"none"` (public client)                                   |
+| `dpop_bound_access_tokens`   | Yes      | Always `true`                                                     |
+| `client_uri`                 | No       | Your app's homepage URL                                           |
+| `logo_uri`                   | No       | URL to your app logo (shown on login page)                        |
+| `email_template_uri`         | No       | URL to a custom OTP email HTML template                           |
+| `email_subject_template`     | No       | Custom email subject line with `{{code}}` placeholder             |
+| `brand_color`                | No       | Hex colour for buttons and input focus rings (default: `#1A130F`) |
+| `background_color`           | No       | Hex colour for the login page background (default: `#F2EBE4`)     |
 
 ## Custom email templates
 
@@ -45,26 +45,26 @@ uses it as the OTP email body instead of the default Certified template.
 
 Your template must be an HTML file. Supported placeholders:
 
-| Placeholder | Description |
-|---|---|
-| `{{code}}` | The 8-digit OTP code — **required** |
-| `{{app_name}}` | Value of `client_name` from your metadata |
-| `{{logo_uri}}` | Value of `logo_uri` from your metadata |
-| `{{#is_new_user}}...{{/is_new_user}}` | Block shown only on first sign-up |
-| `{{^is_new_user}}...{{/is_new_user}}` | Block shown only on subsequent sign-ins |
+| Placeholder                           | Description                               |
+| ------------------------------------- | ----------------------------------------- |
+| `{{code}}`                            | The 8-digit OTP code — **required**       |
+| `{{app_name}}`                        | Value of `client_name` from your metadata |
+| `{{logo_uri}}`                        | Value of `logo_uri` from your metadata    |
+| `{{#is_new_user}}...{{/is_new_user}}` | Block shown only on first sign-up         |
+| `{{^is_new_user}}...{{/is_new_user}}` | Block shown only on subsequent sign-ins   |
 
 Minimal template example:
 
 ```html
 <!DOCTYPE html>
 <html>
-<body>
-  <p>Your {{app_name}} sign-in code is:</p>
-  <h1>{{code}}</h1>
-  {{#is_new_user}}
-  <p>Welcome! Your account has been created.</p>
-  {{/is_new_user}}
-</body>
+  <body>
+    <p>Your {{app_name}} sign-in code is:</p>
+    <h1>{{code}}</h1>
+    {{#is_new_user}}
+    <p>Welcome! Your account has been created.</p>
+    {{/is_new_user}}
+  </body>
 </html>
 ```
 

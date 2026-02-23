@@ -34,8 +34,11 @@ and your callback receives an authorization code to exchange for tokens.
 
 ```typescript
 import {
-  generateDpopKeyPair, generateCodeVerifier, generateCodeChallenge,
-  generateState, createDpopProof,
+  generateDpopKeyPair,
+  generateCodeVerifier,
+  generateCodeChallenge,
+  generateState,
+  createDpopProof,
 } from './auth-helpers'
 
 const PAR_ENDPOINT = 'https://pds.example.com/oauth/par'
@@ -57,16 +60,25 @@ export async function handleLogin(email: string) {
     state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
-    login_hint: email,  // Flow 1: include the email
+    login_hint: email, // Flow 1: include the email
   })
 
   // ePDS always requires a nonce on the first attempt — retry automatically
   const makeProof = (nonce?: string) =>
-    createDpopProof({ privateKey, jwk: publicJwk, method: 'POST', url: PAR_ENDPOINT, nonce })
+    createDpopProof({
+      privateKey,
+      jwk: publicJwk,
+      method: 'POST',
+      url: PAR_ENDPOINT,
+      nonce,
+    })
 
   let parRes = await fetch(PAR_ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', DPoP: makeProof() },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      DPoP: makeProof(),
+    },
     body: parBody.toString(),
   })
   if (!parRes.ok) {
@@ -74,7 +86,10 @@ export async function handleLogin(email: string) {
     if (nonce && parRes.status === 400) {
       parRes = await fetch(PAR_ENDPOINT, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', DPoP: makeProof(nonce) },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          DPoP: makeProof(nonce),
+        },
         body: parBody.toString(),
       })
     }
@@ -169,11 +184,20 @@ export async function handleCallback(params: { code: string; state: string }) {
   })
 
   const makeProof = (nonce?: string) =>
-    createDpopProof({ privateKey, jwk: publicJwk, method: 'POST', url: TOKEN_ENDPOINT, nonce })
+    createDpopProof({
+      privateKey,
+      jwk: publicJwk,
+      method: 'POST',
+      url: TOKEN_ENDPOINT,
+      nonce,
+    })
 
   let tokenRes = await fetch(TOKEN_ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', DPoP: makeProof() },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      DPoP: makeProof(),
+    },
     body: tokenBody.toString(),
   })
   if (!tokenRes.ok) {
@@ -181,7 +205,10 @@ export async function handleCallback(params: { code: string; state: string }) {
     if (nonce) {
       tokenRes = await fetch(TOKEN_ENDPOINT, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', DPoP: makeProof(nonce) },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          DPoP: makeProof(nonce),
+        },
         body: tokenBody.toString(),
       })
     }

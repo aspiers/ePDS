@@ -71,14 +71,21 @@ export function createDpopProof(opts: {
   }
 
   if (opts.accessToken) {
-    payload.ath = crypto.createHash('sha256').update(opts.accessToken).digest('base64url')
+    payload.ath = crypto
+      .createHash('sha256')
+      .update(opts.accessToken)
+      .digest('base64url')
   }
 
   const headerB64 = Buffer.from(JSON.stringify(header)).toString('base64url')
   const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url')
   const signingInput = `${headerB64}.${payloadB64}`
 
-  const signature = crypto.sign('sha256', Buffer.from(signingInput), opts.privateKey)
+  const signature = crypto.sign(
+    'sha256',
+    Buffer.from(signingInput),
+    opts.privateKey,
+  )
   // Convert DER signature to raw r||s format for ES256
   const sigB64 = derToRaw(signature).toString('base64url')
 
@@ -89,18 +96,18 @@ export function createDpopProof(opts: {
 function derToRaw(der: Buffer): Buffer {
   // DER: 0x30 [total-len] 0x02 [r-len] [r] 0x02 [s-len] [s]
   let offset = 2 // skip 0x30 and total length
-  if (der[1]! > 0x80) offset += der[1]! - 0x80 // long form length
+  if (der[1] > 0x80) offset += der[1] - 0x80 // long form length
 
   // Read r
   offset++ // skip 0x02
-  const rLen = der[offset]!
+  const rLen = der[offset]
   offset++
   let r = der.subarray(offset, offset + rLen)
   offset += rLen
 
   // Read s
   offset++ // skip 0x02
-  const sLen = der[offset]!
+  const sLen = der[offset]
   offset++
   let s = der.subarray(offset, offset + sLen)
 
@@ -115,12 +122,18 @@ function derToRaw(der: Buffer): Buffer {
 }
 
 // PDS endpoints (defaults match docker-compose PDS_HOSTNAME=pds.example)
+// PDS_URL is the public URL used for browser redirects and client_id.
+// PDS_INTERNAL_URL is for server-to-server calls (PAR, token exchange) where
+// the public URL may not be reachable from inside Docker (hairpin NAT).
 export const PDS_URL = process.env.PDS_URL || 'https://pds.example'
-export const PAR_ENDPOINT = `${PDS_URL}/oauth/par`
-export const AUTH_ENDPOINT = process.env.AUTH_ENDPOINT || 'https://auth.pds.example/oauth/authorize'
-export const TOKEN_ENDPOINT = `${PDS_URL}/oauth/token`
+const PDS_INTERNAL_URL = process.env.PDS_INTERNAL_URL || PDS_URL
+export const PAR_ENDPOINT = `${PDS_INTERNAL_URL}/oauth/par`
+export const AUTH_ENDPOINT =
+  process.env.AUTH_ENDPOINT || 'https://auth.pds.example/oauth/authorize'
+export const TOKEN_ENDPOINT = `${PDS_INTERNAL_URL}/oauth/token`
 
-export const PLC_DIRECTORY_URL = process.env.PLC_DIRECTORY_URL || 'https://plc.directory'
+export const PLC_DIRECTORY_URL =
+  process.env.PLC_DIRECTORY_URL || 'https://plc.directory'
 
 // ATProto handle discovery
 
@@ -134,29 +147,34 @@ export async function resolveHandleToDid(handle: string): Promise<string> {
       { signal: AbortSignal.timeout(RESOLVE_TIMEOUT) },
     )
     if (res.ok) {
-      const data = await res.json() as { did: string }
+      const data = (await res.json()) as { did: string }
       if (data.did) return data.did
     }
-  } catch { /* fall through to well-known */ }
+  } catch {
+    /* fall through to well-known */
+  }
 
   // Fallback: HTTP well-known (works for custom domain handles)
   try {
-    const res = await fetch(
-      `https://${handle}/.well-known/atproto-did`,
-      { signal: AbortSignal.timeout(RESOLVE_TIMEOUT) },
-    )
+    const res = await fetch(`https://${handle}/.well-known/atproto-did`, {
+      signal: AbortSignal.timeout(RESOLVE_TIMEOUT),
+    })
     if (res.ok) {
       const text = await res.text()
       const did = text.trim().split('\n')[0]?.trim()
-      if (did?.startsWith('did:')) return did
+      if (did?.startsWith('did:')) return did // eslint-disable-line @typescript-eslint/no-unnecessary-condition -- [0] may be undefined
     }
-  } catch { /* fall through */ }
+  } catch {
+    /* fall through */
+  }
 
   throw new Error(`Could not resolve handle: ${handle}`)
 }
 
 export async function resolveDidToPds(did: string): Promise<string> {
-  let doc: { service?: Array<{ id: string; type: string; serviceEndpoint: string }> }
+  let doc: {
+    service?: Array<{ id: string; type: string; serviceEndpoint: string }>
+  }
 
   if (did.startsWith('did:plc:')) {
     const res = await fetch(`${PLC_DIRECTORY_URL}/${did}`, {
@@ -176,7 +194,8 @@ export async function resolveDidToPds(did: string): Promise<string> {
   }
 
   const pdsService = doc.service?.find(
-    (s) => s.type === 'AtprotoPersonalDataServer' && s.id.endsWith('#atproto_pds'),
+    (s) =>
+      s.type === 'AtprotoPersonalDataServer' && s.id.endsWith('#atproto_pds'),
   )
   if (!pdsService?.serviceEndpoint) {
     throw new Error(`No PDS found in DID document for ${did}`)
@@ -193,23 +212,36 @@ export async function discoverOAuthEndpoints(pdsUrl: string): Promise<{
   const prRes = await fetch(`${pdsUrl}/.well-known/oauth-protected-resource`, {
     signal: AbortSignal.timeout(RESOLVE_TIMEOUT),
   })
-  if (!prRes.ok) throw new Error(`Failed to fetch protected resource metadata from ${pdsUrl}`)
-  const prData = await prRes.json() as { authorization_servers?: string[] }
+  if (!prRes.ok)
+    throw new Error(
+      `Failed to fetch protected resource metadata from ${pdsUrl}`,
+    )
+  const prData = (await prRes.json()) as { authorization_servers?: string[] }
   const issuer = prData.authorization_servers?.[0]
   if (!issuer) throw new Error(`No authorization server found for ${pdsUrl}`)
 
   // Step 2: Get OAuth endpoints from authorization server metadata
-  const asRes = await fetch(`${issuer}/.well-known/oauth-authorization-server`, {
-    signal: AbortSignal.timeout(RESOLVE_TIMEOUT),
-  })
-  if (!asRes.ok) throw new Error(`Failed to fetch authorization server metadata from ${issuer}`)
-  const asMeta = await asRes.json() as {
+  const asRes = await fetch(
+    `${issuer}/.well-known/oauth-authorization-server`,
+    {
+      signal: AbortSignal.timeout(RESOLVE_TIMEOUT),
+    },
+  )
+  if (!asRes.ok)
+    throw new Error(
+      `Failed to fetch authorization server metadata from ${issuer}`,
+    )
+  const asMeta = (await asRes.json()) as {
     pushed_authorization_request_endpoint?: string
     authorization_endpoint?: string
     token_endpoint?: string
   }
 
-  if (!asMeta.pushed_authorization_request_endpoint || !asMeta.authorization_endpoint || !asMeta.token_endpoint) {
+  if (
+    !asMeta.pushed_authorization_request_endpoint ||
+    !asMeta.authorization_endpoint ||
+    !asMeta.token_endpoint
+  ) {
     throw new Error(`Incomplete OAuth metadata from ${issuer}`)
   }
 

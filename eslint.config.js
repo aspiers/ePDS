@@ -11,6 +11,8 @@ export default tseslint.config(
       'tmp/',
       'vitest.config.ts',
       'eslint.config.js',
+      '**/next-env.d.ts',
+      '**/.next/',
     ],
   },
 
@@ -66,6 +68,14 @@ export default tseslint.config(
           message: 'Use named exports instead of default exports.',
         },
       ],
+    },
+  },
+
+  // Next.js requires default exports for pages, layouts, and route handlers
+  {
+    files: ['packages/demo/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': 'off',
     },
   },
 

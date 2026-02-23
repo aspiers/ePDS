@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useSearchParams } from 'next/navigation'
 import { useState, Suspense } from 'react'
@@ -23,28 +23,34 @@ function LoginForm() {
   }
 
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '100vh',
-      padding: '20px',
-      overflow: 'hidden',
-      background: '#f8f9fa',
-    }}>
-      <div style={{
-        maxWidth: '440px',
-        width: '100%',
-        textAlign: 'center',
-      }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        padding: '20px',
+        overflow: 'hidden',
+        background: '#f8f9fa',
+      }}
+    >
+      <div
+        style={{
+          maxWidth: '440px',
+          width: '100%',
+          textAlign: 'center',
+        }}
+      >
         <div style={{ marginBottom: '24px' }}>
           <AppLogo size={64} />
-          <h1 style={{
-            fontSize: '22px',
-            fontWeight: 600,
-            color: '#1a1a2e',
-            margin: '12px 0 4px',
-          }}>
+          <h1
+            style={{
+              fontSize: '22px',
+              fontWeight: 600,
+              color: '#1a1a2e',
+              margin: '12px 0 4px',
+            }}
+          >
             ePDS Demo
           </h1>
           <p style={{ fontSize: '14px', color: '#6b7280', margin: 0 }}>
@@ -53,16 +59,18 @@ function LoginForm() {
         </div>
 
         {error && (
-          <div style={{
-            background: '#fef2f2',
-            color: '#dc2626',
-            padding: '12px 16px',
-            borderRadius: '8px',
-            fontSize: '14px',
-            marginBottom: '16px',
-            maxWidth: '290px',
-            margin: '0 auto 16px',
-          }}>
+          <div
+            style={{
+              background: '#fef2f2',
+              color: '#dc2626',
+              padding: '12px 16px',
+              borderRadius: '8px',
+              fontSize: '14px',
+              marginBottom: '16px',
+              maxWidth: '290px',
+              margin: '0 auto 16px',
+            }}
+          >
             {decodeURIComponent(error)}
           </div>
         )}
@@ -71,16 +79,23 @@ function LoginForm() {
           action="/api/oauth/login"
           method="GET"
           style={{ margin: '0 auto', maxWidth: '290px' }}
-          onSubmit={() => { setTimeout(() => setSubmitting(true), 0) }}
+          onSubmit={() => {
+            setTimeout(() => {
+              setSubmitting(true)
+            }, 0)
+          }}
         >
           <div style={{ marginBottom: '16px', textAlign: 'left' }}>
-            <label htmlFor={mode === 'email' ? 'email' : 'handle'} style={{
-              display: 'block',
-              fontSize: '14px',
-              fontWeight: 500,
-              color: '#1a1a2e',
-              marginBottom: '6px',
-            }}>
+            <label
+              htmlFor={mode === 'email' ? 'email' : 'handle'}
+              style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: 500,
+                color: '#1a1a2e',
+                marginBottom: '6px',
+              }}
+            >
               {mode === 'email' ? 'Email address' : 'Handle'}
             </label>
             {mode === 'email' ? (
@@ -148,21 +163,33 @@ function LoginForm() {
             }}
           >
             {mode === 'email' ? (
-              submitting ? 'Sending verification code...' : (
+              submitting ? (
+                'Sending verification code...'
+              ) : (
                 <>
-                  <img src="/certified-logo.png" alt="" style={{ height: '20px' }} />
-                  <span style={{ width: '12px', display: 'inline-block' }}></span>
+                  <img
+                    src="/certified-logo.png"
+                    alt=""
+                    style={{ height: '20px' }}
+                  />
+                  <span
+                    style={{ width: '12px', display: 'inline-block' }}
+                  ></span>
                   Sign in with Certified
                 </>
               )
+            ) : submitting ? (
+              'Redirecting...'
             ) : (
-              submitting ? 'Redirecting...' : 'Sign in'
+              'Sign in'
             )}
           </button>
         </form>
 
         <p
-          onClick={() => switchMode(mode === 'email' ? 'handle' : 'email')}
+          onClick={() => {
+            switchMode(mode === 'email' ? 'handle' : 'email')
+          }}
           style={{
             color: '#6b7280',
             fontSize: '13px',
@@ -170,7 +197,9 @@ function LoginForm() {
             marginTop: '16px',
           }}
         >
-          {mode === 'email' ? 'Sign in with ATProto/Bluesky' : 'Sign in with Certified'}
+          {mode === 'email'
+            ? 'Sign in with ATProto/Bluesky'
+            : 'Sign in with Certified'}
         </p>
 
         <a

@@ -5,62 +5,62 @@
  * Provides a sign-out button that clears the session cookie.
  */
 
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import { getSessionFromCookie, SESSION_COOKIE } from "@/lib/session";
-import { AppLogo } from "../components/AppLogo";
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { getSessionFromCookie, SESSION_COOKIE } from '@/lib/session'
+import { AppLogo } from '../components/AppLogo'
 
 async function signOut() {
-  "use server";
+  'use server'
 
-  const cookieStore = await cookies();
-  cookieStore.delete(SESSION_COOKIE);
-  redirect("/");
+  const cookieStore = await cookies()
+  cookieStore.delete(SESSION_COOKIE)
+  redirect('/')
 }
 
 export default async function Welcome() {
-  const cookieStore = await cookies();
-  const session = await getSessionFromCookie(cookieStore);
+  const cookieStore = await cookies()
+  const session = getSessionFromCookie(cookieStore)
 
   if (!session) {
-    redirect("/");
+    redirect('/')
   }
 
   return (
     <div
       style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: "100vh",
-        padding: "20px",
-        background: "#f8f9fa",
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        padding: '20px',
+        background: '#f8f9fa',
       }}
     >
       <div
         style={{
-          maxWidth: "520px",
-          width: "100%",
-          textAlign: "center",
+          maxWidth: '520px',
+          width: '100%',
+          textAlign: 'center',
         }}
       >
         <AppLogo size={64} />
         <h1
           style={{
-            fontSize: "22px",
+            fontSize: '22px',
             fontWeight: 600,
-            color: "#1a1a2e",
-            margin: "12px 0 4px",
+            color: '#1a1a2e',
+            margin: '12px 0 4px',
           }}
         >
           ePDS Demo
         </h1>
         <p
           style={{
-            fontSize: "17px",
-            color: "#6b7280",
+            fontSize: '17px',
+            color: '#6b7280',
             lineHeight: 1.6,
-            margin: "0 0 24px 0",
+            margin: '0 0 24px 0',
           }}
         >
           You are signed in.
@@ -68,50 +68,50 @@ export default async function Welcome() {
 
         <div
           style={{
-            background: "#fff",
-            borderRadius: "12px",
-            padding: "28px 32px",
-            textAlign: "left",
-            boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-            marginBottom: "32px",
+            background: '#fff',
+            borderRadius: '12px',
+            padding: '28px 32px',
+            textAlign: 'left',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+            marginBottom: '32px',
           }}
         >
-          <div style={{ marginBottom: "16px" }}>
+          <div style={{ marginBottom: '16px' }}>
             <div
               style={{
-                fontSize: "12px",
+                fontSize: '12px',
                 fontWeight: 600,
-                color: "#6b7280",
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-                marginBottom: "4px",
+                color: '#6b7280',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                marginBottom: '4px',
               }}
             >
               Handle
             </div>
-            <div style={{ fontSize: "17px", color: "#1a1a2e" }}>
+            <div style={{ fontSize: '17px', color: '#1a1a2e' }}>
               @{session.userHandle}
             </div>
           </div>
           <div>
             <div
               style={{
-                fontSize: "12px",
+                fontSize: '12px',
                 fontWeight: 600,
-                color: "#6b7280",
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-                marginBottom: "4px",
+                color: '#6b7280',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                marginBottom: '4px',
               }}
             >
               DID
             </div>
             <div
               style={{
-                fontSize: "13px",
-                color: "#6b7280",
+                fontSize: '13px',
+                color: '#6b7280',
                 fontFamily: "'SF Mono', Menlo, Consolas, monospace",
-                wordBreak: "break-all",
+                wordBreak: 'break-all',
               }}
             >
               {session.userDid}
@@ -119,22 +119,22 @@ export default async function Welcome() {
           </div>
         </div>
 
-        <form action={signOut} style={{ textAlign: "center" }}>
+        <form action={signOut} style={{ textAlign: 'center' }}>
           <button
             type="submit"
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "14px 28px",
-              fontSize: "16px",
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '14px 28px',
+              fontSize: '16px',
               fontWeight: 500,
-              color: "#ffffff",
-              background: "#2563eb",
-              border: "none",
-              borderRadius: "8px",
-              cursor: "pointer",
-              letterSpacing: "0.3px",
+              color: '#ffffff',
+              background: '#2563eb',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              letterSpacing: '0.3px',
             }}
           >
             Sign out
@@ -142,5 +142,5 @@ export default async function Welcome() {
         </form>
       </div>
     </div>
-  );
+  )
 }

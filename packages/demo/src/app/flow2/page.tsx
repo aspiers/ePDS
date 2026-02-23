@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useSearchParams } from 'next/navigation'
 import { useState, Suspense } from 'react'
@@ -17,49 +17,59 @@ function Flow2Login() {
   const [submitting, setSubmitting] = useState(false)
 
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '100vh',
-      padding: '20px',
-      overflow: 'hidden',
-      background: '#f8f9fa',
-    }}>
-      <div style={{
-        maxWidth: '440px',
-        width: '100%',
-        textAlign: 'center',
-      }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        padding: '20px',
+        overflow: 'hidden',
+        background: '#f8f9fa',
+      }}
+    >
+      <div
+        style={{
+          maxWidth: '440px',
+          width: '100%',
+          textAlign: 'center',
+        }}
+      >
         <div style={{ marginBottom: '24px' }}>
           <AppLogo size={64} />
-          <h1 style={{
-            fontSize: '22px',
-            fontWeight: 600,
-            color: '#1a1a2e',
-            margin: '12px 0 4px',
-          }}>
+          <h1
+            style={{
+              fontSize: '22px',
+              fontWeight: 600,
+              color: '#1a1a2e',
+              margin: '12px 0 4px',
+            }}
+          >
             ePDS Demo
           </h1>
         </div>
 
-        <p style={{
-          fontSize: '13px',
-          color: '#6b7280',
-          marginBottom: '24px',
-        }}>
+        <p
+          style={{
+            fontSize: '13px',
+            color: '#6b7280',
+            marginBottom: '24px',
+          }}
+        >
           Flow 2 — auth server collects email
         </p>
 
         {error && (
-          <div style={{
-            background: '#fef2f2',
-            color: '#dc2626',
-            padding: '12px 16px',
-            borderRadius: '8px',
-            fontSize: '14px',
-            marginBottom: '16px',
-          }}>
+          <div
+            style={{
+              background: '#fef2f2',
+              color: '#dc2626',
+              padding: '12px 16px',
+              borderRadius: '8px',
+              fontSize: '14px',
+              marginBottom: '16px',
+            }}
+          >
             {decodeURIComponent(error)}
           </div>
         )}
@@ -69,7 +79,11 @@ function Flow2Login() {
           action="/api/oauth/login"
           method="GET"
           style={{ margin: '0 auto', maxWidth: '290px' }}
-          onSubmit={() => { setTimeout(() => setSubmitting(true), 0) }}
+          onSubmit={() => {
+            setTimeout(() => {
+              setSubmitting(true)
+            }, 0)
+          }}
         >
           <button
             type="submit"
@@ -91,9 +105,15 @@ function Flow2Login() {
               opacity: submitting ? 0.7 : 1,
             }}
           >
-            {submitting ? 'Redirecting...' : (
+            {submitting ? (
+              'Redirecting...'
+            ) : (
               <>
-                <img src="/certified-logo.png" alt="" style={{ height: '20px' }} />
+                <img
+                  src="/certified-logo.png"
+                  alt=""
+                  style={{ height: '20px' }}
+                />
                 <span style={{ width: '12px', display: 'inline-block' }}></span>
                 Sign in with Certified
               </>

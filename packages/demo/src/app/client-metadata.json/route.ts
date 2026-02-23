@@ -10,7 +10,7 @@ import { getBaseUrl } from '@/lib/auth'
 
 export const runtime = 'nodejs'
 
-export async function GET() {
+export function GET() {
   const baseUrl = getBaseUrl()
 
   const metadata = {

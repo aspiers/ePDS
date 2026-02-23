@@ -14,19 +14,19 @@ all stripped here to keep the tutorial focused on the core OAuth flow.
 
 ### Keep (core OAuth plumbing)
 
-| maearth-demo source                       | demo destination                          | Changes                                                                |
-| ----------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------- |
-| `src/lib/auth.ts`                         | `src/lib/auth.ts`                         | Remove `certs.network` defaults; use `pds.example` from docker-compose |
-| `src/lib/session.ts`                      | `src/lib/session.ts`                      | Remove 2FA `verified` field                                            |
-| `src/lib/validation.ts`                   | `src/lib/validation.ts`                   | Copy as-is                                                             |
-| `src/lib/ratelimit.ts`                    | `src/lib/ratelimit.ts`                    | In-memory only — drop Upstash Redis and daily spending tracking        |
-| `src/app/api/oauth/login/route.ts`        | `src/app/api/oauth/login/route.ts`        | Keep email + handle modes                                              |
-| `src/app/api/oauth/callback/route.ts`     | `src/app/api/oauth/callback/route.ts`     | Remove 2FA check, wallet provisioning                                  |
-| `src/app/client-metadata.json/route.ts`   | `src/app/client-metadata.json/route.ts`   | Rebrand to "ePDS Demo"                                                 |
-| `src/app/page.tsx`                        | `src/app/page.tsx`                        | Rebrand; keep "Sign in with Certified"                                 |
-| `src/app/flow2/page.tsx`                  | `src/app/flow2/page.tsx`                  | Rebrand; keep "Sign in with Certified"                                 |
-| `src/app/welcome/page.tsx`                | `src/app/welcome/page.tsx`                | Show handle + DID + sign out only                                      |
-| `src/app/layout.tsx`                      | `src/app/layout.tsx`                      | New color scheme                                                       |
+| maearth-demo source                     | demo destination                        | Changes                                                                |
+| --------------------------------------- | --------------------------------------- | ---------------------------------------------------------------------- |
+| `src/lib/auth.ts`                       | `src/lib/auth.ts`                       | Remove `certs.network` defaults; use `pds.example` from docker-compose |
+| `src/lib/session.ts`                    | `src/lib/session.ts`                    | Remove 2FA `verified` field                                            |
+| `src/lib/validation.ts`                 | `src/lib/validation.ts`                 | Copy as-is                                                             |
+| `src/lib/ratelimit.ts`                  | `src/lib/ratelimit.ts`                  | In-memory only — drop Upstash Redis and daily spending tracking        |
+| `src/app/api/oauth/login/route.ts`      | `src/app/api/oauth/login/route.ts`      | Keep email + handle modes                                              |
+| `src/app/api/oauth/callback/route.ts`   | `src/app/api/oauth/callback/route.ts`   | Remove 2FA check, wallet provisioning                                  |
+| `src/app/client-metadata.json/route.ts` | `src/app/client-metadata.json/route.ts` | Rebrand to "ePDS Demo"                                                 |
+| `src/app/page.tsx`                      | `src/app/page.tsx`                      | Rebrand; keep "Sign in with Certified"                                 |
+| `src/app/flow2/page.tsx`                | `src/app/flow2/page.tsx`                | Rebrand; keep "Sign in with Certified"                                 |
+| `src/app/welcome/page.tsx`              | `src/app/welcome/page.tsx`              | Show handle + DID + sign out only                                      |
+| `src/app/layout.tsx`                    | `src/app/layout.tsx`                    | New color scheme                                                       |
 
 ### Strip entirely
 
@@ -46,18 +46,18 @@ auth service brand, not the app brand.
 
 ### Color scheme (blue-gray, generic)
 
-| Token          | Value     | Description      |
-| -------------- | --------- | ---------------- |
-| `background`   | `#f8f9fa` | Light gray       |
-| `surface`      | `#ffffff` | White cards      |
-| `primary`      | `#2563eb` | Blue-600         |
-| `primary-hover`| `#1d4ed8` | Blue-700         |
-| `text`         | `#1a1a2e` | Near-black navy  |
-| `text-muted`   | `#6b7280` | Gray-500         |
-| `border`       | `#e5e7eb` | Gray-200         |
-| `button-text`  | `#ffffff` | White            |
-| `error-bg`     | `#fef2f2` | Light red        |
-| `error-text`   | `#dc2626` | Red              |
+| Token           | Value     | Description     |
+| --------------- | --------- | --------------- |
+| `background`    | `#f8f9fa` | Light gray      |
+| `surface`       | `#ffffff` | White cards     |
+| `primary`       | `#2563eb` | Blue-600        |
+| `primary-hover` | `#1d4ed8` | Blue-700        |
+| `text`          | `#1a1a2e` | Near-black navy |
+| `text-muted`    | `#6b7280` | Gray-500        |
+| `border`        | `#e5e7eb` | Gray-200        |
+| `button-text`   | `#ffffff` | White           |
+| `error-bg`      | `#fef2f2` | Light red       |
+| `error-text`    | `#dc2626` | Red             |
 
 ### Logo
 
@@ -83,10 +83,10 @@ defaults.
 Derived from the docker-compose defaults (`PDS_HOSTNAME=pds.example`, Caddy on
 `:443`):
 
-| Variable        | Default                                          |
-| --------------- | ------------------------------------------------ |
-| `PDS_URL`       | `https://pds.example`                            |
-| `AUTH_ENDPOINT` | `https://auth.pds.example/oauth/authorize`       |
+| Variable        | Default                                    |
+| --------------- | ------------------------------------------ |
+| `PDS_URL`       | `https://pds.example`                      |
+| `AUTH_ENDPOINT` | `https://auth.pds.example/oauth/authorize` |
 
 These match the Caddyfile's `{$PDS_HOSTNAME:pds.example}` placeholder, so the
 demo works out of the box with `docker compose up`.
@@ -96,11 +96,11 @@ For local dev without Caddy, set `PDS_URL=http://localhost:3000` and
 
 ## Package configuration
 
-| Field   | Value                  |
-| ------- | ---------------------- |
-| name    | `@certified-app/demo`  |
-| private | `true`                 |
-| type    | `module`               |
+| Field   | Value                 |
+| ------- | --------------------- |
+| name    | `@certified-app/demo` |
+| private | `true`                |
+| type    | `module`              |
 
 ### Framework
 

@@ -14,5 +14,5 @@ export function AppLogo({ size = 48 }: { size?: number }) {
         fill="white"
       />
     </svg>
-  );
+  )
 }

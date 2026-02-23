@@ -11,7 +11,7 @@
  * 4. Redirect browser to auth endpoint
  */
 
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server'
 import {
   getBaseUrl,
   generateCodeVerifier,
@@ -25,113 +25,113 @@ import {
   resolveHandleToDid,
   resolveDidToPds,
   discoverOAuthEndpoints,
-} from "@/lib/auth";
-import { createOAuthSessionCookie } from "@/lib/session";
-import { validateEmail, validateHandle, sanitizeForLog } from "@/lib/validation";
-import { checkRateLimit } from "@/lib/ratelimit";
+} from '@/lib/auth'
+import { createOAuthSessionCookie } from '@/lib/session'
+import { validateEmail, validateHandle, sanitizeForLog } from '@/lib/validation'
+import { checkRateLimit } from '@/lib/ratelimit'
 
-export const runtime = "nodejs";
+export const runtime = 'nodejs'
 
-const RATE_LIMIT_LOGIN = Number(process.env.RATE_LIMIT_LOGIN) || 10;
-const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RATE_LIMIT_LOGIN = Number(process.env.RATE_LIMIT_LOGIN) || 10
+const RATE_LIMIT_WINDOW_MS = 60 * 1000
 
 export async function GET(request: Request) {
-  const baseUrl = getBaseUrl();
+  const baseUrl = getBaseUrl()
 
   try {
     // Rate limit by IP
     const ip =
-      request.headers.get("x-real-ip") ||
-      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      "unknown";
-    const rl = await checkRateLimit(
+      request.headers.get('x-real-ip') ||
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      'unknown'
+    const rl = checkRateLimit(
       `login:${ip}`,
       RATE_LIMIT_LOGIN,
       RATE_LIMIT_WINDOW_MS,
-    );
+    )
     if (!rl.allowed) {
-      return new NextResponse("Too many requests", {
+      return new NextResponse('Too many requests', {
         status: 429,
-        headers: { "Retry-After": String(rl.retryAfter) },
-      });
+        headers: { 'Retry-After': String(rl.retryAfter) },
+      })
     }
 
-    const url = new URL(request.url);
-    const email = url.searchParams.get("email") || "";
-    const handle = (url.searchParams.get("handle") || "")
-      .replace(/^@/, "")
-      .trim();
+    const url = new URL(request.url)
+    const email = url.searchParams.get('email') || ''
+    const handle = (url.searchParams.get('handle') || '')
+      .replace(/^@/, '')
+      .trim()
 
     // Input validation
     // Note: email and handle are both optional — omitting both triggers Flow 2
     // (auth server collects the email itself via its own form).
     if (email && !validateEmail(email)) {
-      return NextResponse.redirect(new URL("/?error=auth_failed", baseUrl));
+      return NextResponse.redirect(new URL('/?error=auth_failed', baseUrl))
     }
     if (handle && !validateHandle(handle)) {
-      return NextResponse.redirect(new URL("/?error=auth_failed", baseUrl));
+      return NextResponse.redirect(new URL('/?error=auth_failed', baseUrl))
     }
 
     // Determine endpoints: dynamic for handle, hardcoded for email
-    let parEndpoint = PAR_ENDPOINT;
-    let authEndpoint = AUTH_ENDPOINT;
-    let tokenEndpoint = TOKEN_ENDPOINT;
-    let expectedDid: string | undefined;
-    let expectedPdsUrl: string | undefined;
+    let parEndpoint = PAR_ENDPOINT
+    let authEndpoint = AUTH_ENDPOINT
+    let tokenEndpoint = TOKEN_ENDPOINT
+    let expectedDid: string | undefined
+    let expectedPdsUrl: string | undefined
 
     if (handle) {
-      console.log("[oauth/login] Resolving handle:", sanitizeForLog(handle));
-      const did = await resolveHandleToDid(handle);
-      console.log("[oauth/login] Resolved DID:", sanitizeForLog(did));
-      const pdsUrl = await resolveDidToPds(did);
-      console.log("[oauth/login] Resolved PDS:", sanitizeForLog(pdsUrl));
-      const endpoints = await discoverOAuthEndpoints(pdsUrl);
-      console.log("[oauth/login] Discovered OAuth endpoints");
-      parEndpoint = endpoints.parEndpoint;
-      authEndpoint = endpoints.authEndpoint;
-      tokenEndpoint = endpoints.tokenEndpoint;
-      expectedDid = did;
-      expectedPdsUrl = pdsUrl;
+      console.log('[oauth/login] Resolving handle:', sanitizeForLog(handle))
+      const did = await resolveHandleToDid(handle)
+      console.log('[oauth/login] Resolved DID:', sanitizeForLog(did))
+      const pdsUrl = await resolveDidToPds(did)
+      console.log('[oauth/login] Resolved PDS:', sanitizeForLog(pdsUrl))
+      const endpoints = await discoverOAuthEndpoints(pdsUrl)
+      console.log('[oauth/login] Discovered OAuth endpoints')
+      parEndpoint = endpoints.parEndpoint
+      authEndpoint = endpoints.authEndpoint
+      tokenEndpoint = endpoints.tokenEndpoint
+      expectedDid = did
+      expectedPdsUrl = pdsUrl
     }
 
-    const clientId = `${baseUrl}/client-metadata.json`;
-    const redirectUri = `${baseUrl}/api/oauth/callback`;
+    const clientId = `${baseUrl}/client-metadata.json`
+    const redirectUri = `${baseUrl}/api/oauth/callback`
 
     // Generate PKCE
-    const codeVerifier = generateCodeVerifier();
-    const codeChallenge = generateCodeChallenge(codeVerifier);
-    const state = generateState();
+    const codeVerifier = generateCodeVerifier()
+    const codeChallenge = generateCodeChallenge(codeVerifier)
+    const state = generateState()
 
     // Generate DPoP proof for PAR
-    const { privateKey, publicJwk, privateJwk } = generateDpopKeyPair();
+    const { privateKey, publicJwk, privateJwk } = generateDpopKeyPair()
     const dpopProof = createDpopProof({
       privateKey,
       jwk: publicJwk,
-      method: "POST",
+      method: 'POST',
       url: parEndpoint,
-    });
+    })
 
     // Push Authorization Request (PAR)
     const parBody = new URLSearchParams({
       client_id: clientId,
       redirect_uri: redirectUri,
-      response_type: "code",
-      scope: "atproto transition:generic",
+      response_type: 'code',
+      scope: 'atproto transition:generic',
       state,
       code_challenge: codeChallenge,
-      code_challenge_method: "S256",
-    });
+      code_challenge_method: 'S256',
+    })
 
-    console.log("[oauth/login] Sending PAR request");
+    console.log('[oauth/login] Sending PAR request')
 
     const parRes = await fetch(parEndpoint, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
+        'Content-Type': 'application/x-www-form-urlencoded',
         DPoP: dpopProof,
       },
       body: parBody.toString(),
-    });
+    })
 
     // Session data to store in signed cookie
     const sessionData = {
@@ -142,79 +142,79 @@ export async function GET(request: Request) {
       email: email || undefined,
       expectedDid,
       expectedPdsUrl,
-    };
-    const oauthCookie = createOAuthSessionCookie(sessionData);
+    }
+    const oauthCookie = createOAuthSessionCookie(sessionData)
 
     if (!parRes.ok) {
-      console.error("[oauth/login] PAR failed:", parRes.status);
+      console.error('[oauth/login] PAR failed:', parRes.status)
 
       // Check for DPoP nonce requirement
-      const dpopNonce = parRes.headers.get("dpop-nonce");
+      const dpopNonce = parRes.headers.get('dpop-nonce')
       if (dpopNonce && parRes.status === 400) {
-        console.log("[oauth/login] Retrying with DPoP nonce");
+        console.log('[oauth/login] Retrying with DPoP nonce')
         const dpopProof2 = createDpopProof({
           privateKey,
           jwk: publicJwk,
-          method: "POST",
+          method: 'POST',
           url: parEndpoint,
           nonce: dpopNonce,
-        });
+        })
 
         const parRes2 = await fetch(parEndpoint, {
-          method: "POST",
+          method: 'POST',
           headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
+            'Content-Type': 'application/x-www-form-urlencoded',
             DPoP: dpopProof2,
           },
           body: parBody.toString(),
-        });
+        })
 
         if (!parRes2.ok) {
-          console.error("[oauth/login] PAR retry failed:", parRes2.status);
-          return NextResponse.redirect(new URL("/?error=auth_failed", baseUrl));
+          console.error('[oauth/login] PAR retry failed:', parRes2.status)
+          return NextResponse.redirect(new URL('/?error=auth_failed', baseUrl))
         }
 
-        const parData2 = (await parRes2.json()) as { request_uri: string };
+        const parData2 = (await parRes2.json()) as { request_uri: string }
         const loginHint = email
           ? `&login_hint=${encodeURIComponent(email)}`
-          : "";
-        const authUrl = `${authEndpoint}?client_id=${encodeURIComponent(clientId)}&request_uri=${encodeURIComponent(parData2.request_uri)}${loginHint}`;
-        console.log("[oauth/login] Redirecting to auth (after nonce retry)");
-        const resp2 = NextResponse.redirect(authUrl);
+          : ''
+        const authUrl = `${authEndpoint}?client_id=${encodeURIComponent(clientId)}&request_uri=${encodeURIComponent(parData2.request_uri)}${loginHint}`
+        console.log('[oauth/login] Redirecting to auth (after nonce retry)')
+        const resp2 = NextResponse.redirect(authUrl)
         resp2.cookies.set(oauthCookie.name, oauthCookie.value, {
           httpOnly: true,
           secure: true,
-          sameSite: "lax",
+          sameSite: 'lax',
           maxAge: 600,
-          path: "/",
-        });
-        return resp2;
+          path: '/',
+        })
+        return resp2
       }
 
-      return NextResponse.redirect(new URL("/?error=auth_failed", baseUrl));
+      return NextResponse.redirect(new URL('/?error=auth_failed', baseUrl))
     }
 
-    const parData = (await parRes.json()) as { request_uri: string };
+    const parData = (await parRes.json()) as { request_uri: string }
     const loginHintParam = email
       ? `&login_hint=${encodeURIComponent(email)}`
-      : "";
-    const authUrl = `${authEndpoint}?client_id=${encodeURIComponent(clientId)}&request_uri=${encodeURIComponent(parData.request_uri)}${loginHintParam}`;
+      : ''
+    const authUrl = `${authEndpoint}?client_id=${encodeURIComponent(clientId)}&request_uri=${encodeURIComponent(parData.request_uri)}${loginHintParam}`
 
-    console.log("[oauth/login] Redirecting to auth");
-    const response = NextResponse.redirect(authUrl);
+    console.log('[oauth/login] Redirecting to auth')
+    const response = NextResponse.redirect(authUrl)
     response.cookies.set(oauthCookie.name, oauthCookie.value, {
       httpOnly: true,
       secure: true,
-      sameSite: "lax",
+      sameSite: 'lax',
       maxAge: 600,
-      path: "/",
-    });
-    return response;
+      path: '/',
+    })
+    return response
   } catch (err) {
     console.error(
-      "[oauth/login] Error:",
-      err instanceof Error ? err.message : "Unknown error",
-    );
-    return NextResponse.redirect(new URL("/?error=auth_failed", baseUrl));
+      '[oauth/login] Error:',
+      err instanceof Error ? err.message : 'Unknown error',
+    )
+    return NextResponse.redirect(new URL('/?error=auth_failed', baseUrl))
   }
 }

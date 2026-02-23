@@ -10,8 +10,8 @@
  * 6. Redirect to /welcome
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import * as crypto from "crypto";
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 import {
   getBaseUrl,
   restoreDpopKeyPair,
@@ -19,168 +19,164 @@ import {
   resolveDidToPds,
   TOKEN_ENDPOINT,
   PLC_DIRECTORY_URL,
-} from "@/lib/auth";
-import { cookies } from "next/headers";
+} from '@/lib/auth'
+import { cookies } from 'next/headers'
 import {
   getOAuthSessionFromCookie,
   createUserSessionCookie,
-  SESSION_COOKIE,
   OAUTH_COOKIE,
-} from "@/lib/session";
-import { sanitizeForLog } from "@/lib/validation";
+} from '@/lib/session'
+import { sanitizeForLog } from '@/lib/validation'
 
-export const runtime = "nodejs";
+export const runtime = 'nodejs'
 
 export async function GET(request: NextRequest) {
-  const baseUrl = getBaseUrl();
+  const baseUrl = getBaseUrl()
 
   try {
-    const code = request.nextUrl.searchParams.get("code");
-    const state = request.nextUrl.searchParams.get("state");
-    const error = request.nextUrl.searchParams.get("error");
+    const code = request.nextUrl.searchParams.get('code')
+    const state = request.nextUrl.searchParams.get('state')
+    const error = request.nextUrl.searchParams.get('error')
 
     if (error) {
-      console.error("[oauth/callback] Auth error from PDS");
-      return NextResponse.redirect(new URL("/?error=auth_failed", baseUrl));
+      console.error('[oauth/callback] Auth error from PDS')
+      return NextResponse.redirect(new URL('/?error=auth_failed', baseUrl))
     }
 
     if (!code || !state) {
-      return NextResponse.redirect(new URL("/?error=auth_failed", baseUrl));
+      return NextResponse.redirect(new URL('/?error=auth_failed', baseUrl))
     }
 
     // Retrieve OAuth session from signed cookie
-    const cookieStore = await cookies();
-    const stateData = getOAuthSessionFromCookie(cookieStore);
+    const cookieStore = await cookies()
+    const stateData = getOAuthSessionFromCookie(cookieStore)
     if (!stateData) {
-      return NextResponse.redirect(new URL("/?error=auth_failed", baseUrl));
+      return NextResponse.redirect(new URL('/?error=auth_failed', baseUrl))
     }
 
     if (stateData.state !== state) {
-      return NextResponse.redirect(new URL("/?error=auth_failed", baseUrl));
+      return NextResponse.redirect(new URL('/?error=auth_failed', baseUrl))
     }
 
-    const codeVerifier = stateData.codeVerifier;
-    const tokenUrl = stateData.tokenEndpoint || TOKEN_ENDPOINT;
+    const codeVerifier = stateData.codeVerifier
+    const tokenUrl = stateData.tokenEndpoint || TOKEN_ENDPOINT
 
-    const clientId = `${baseUrl}/client-metadata.json`;
-    const redirectUri = `${baseUrl}/api/oauth/callback`;
+    const clientId = `${baseUrl}/client-metadata.json`
+    const redirectUri = `${baseUrl}/api/oauth/callback`
 
     // Exchange code for tokens with DPoP
-    if (!stateData.dpopPrivateJwk) {
-      return NextResponse.redirect(new URL("/?error=auth_failed", baseUrl));
-    }
     const { privateKey, publicJwk } = restoreDpopKeyPair(
-      stateData.dpopPrivateJwk as crypto.JsonWebKey,
-    );
+      stateData.dpopPrivateJwk,
+    )
 
     const tokenBody = new URLSearchParams({
-      grant_type: "authorization_code",
+      grant_type: 'authorization_code',
       code,
       redirect_uri: redirectUri,
       client_id: clientId,
       code_verifier: codeVerifier,
-    });
+    })
 
     // First attempt
     let dpopProof = createDpopProof({
       privateKey,
       jwk: publicJwk,
-      method: "POST",
+      method: 'POST',
       url: tokenUrl,
-    });
+    })
 
     let tokenRes = await fetch(tokenUrl, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
+        'Content-Type': 'application/x-www-form-urlencoded',
         DPoP: dpopProof,
       },
       body: tokenBody.toString(),
-    });
+    })
 
     // Handle DPoP nonce requirement
     if (!tokenRes.ok) {
-      const dpopNonce = tokenRes.headers.get("dpop-nonce");
+      const dpopNonce = tokenRes.headers.get('dpop-nonce')
       if (dpopNonce) {
         dpopProof = createDpopProof({
           privateKey,
           jwk: publicJwk,
-          method: "POST",
+          method: 'POST',
           url: tokenUrl,
           nonce: dpopNonce,
-        });
+        })
 
         tokenRes = await fetch(tokenUrl, {
-          method: "POST",
+          method: 'POST',
           headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
+            'Content-Type': 'application/x-www-form-urlencoded',
             DPoP: dpopProof,
           },
           body: tokenBody.toString(),
-        });
+        })
       }
     }
 
     if (!tokenRes.ok) {
-      const errBody = await tokenRes.text().catch(() => "");
+      const errBody = await tokenRes.text().catch(() => '')
       console.error(
         `[oauth/callback] FAILED status=${tokenRes.status} url=${tokenUrl} body=${errBody}`,
-      );
-      return NextResponse.redirect(new URL("/?error=auth_failed", baseUrl));
+      )
+      return NextResponse.redirect(new URL('/?error=auth_failed', baseUrl))
     }
 
     const tokenData = (await tokenRes.json()) as {
-      access_token: string;
-      token_type: string;
-      sub: string;
-      scope?: string;
-    };
+      access_token: string
+      token_type: string
+      sub: string
+      scope?: string
+    }
 
     // Validate sub matches expected DID (blocks malicious PDS impersonation)
     if (stateData.expectedDid && tokenData.sub !== stateData.expectedDid) {
       console.error(
         `[oauth/callback] FAIL=did_mismatch sub=${tokenData.sub} expected=${stateData.expectedDid}`,
-      );
-      return NextResponse.redirect(new URL("/?error=auth_failed", baseUrl));
+      )
+      return NextResponse.redirect(new URL('/?error=auth_failed', baseUrl))
     }
 
     // For email login: verify the returned DID's PDS matches our token endpoint
     if (!stateData.expectedDid && tokenData.sub) {
       try {
-        const didPdsUrl = await resolveDidToPds(tokenData.sub);
-        const didPdsOrigin = new URL(didPdsUrl).origin;
-        const tokenOrigin = new URL(tokenUrl).origin;
+        const didPdsUrl = await resolveDidToPds(tokenData.sub)
+        const didPdsOrigin = new URL(didPdsUrl).origin
+        const tokenOrigin = new URL(tokenUrl).origin
         if (didPdsOrigin !== tokenOrigin) {
           console.error(
             `[oauth/callback] FAIL=email_pds_mismatch did_pds=${didPdsOrigin} token=${tokenOrigin}`,
-          );
-          return NextResponse.redirect(new URL("/?error=auth_failed", baseUrl));
+          )
+          return NextResponse.redirect(new URL('/?error=auth_failed', baseUrl))
         }
       } catch (err) {
         console.error(
           `[oauth/callback] FAIL=email_pds_resolve error=${err instanceof Error ? err.message : err}`,
-        );
-        return NextResponse.redirect(new URL("/?error=auth_failed", baseUrl));
+        )
+        return NextResponse.redirect(new URL('/?error=auth_failed', baseUrl))
       }
     }
 
-    console.log(`[oauth/callback] OK sub=${sanitizeForLog(tokenData.sub)}`);
+    console.log(`[oauth/callback] OK sub=${sanitizeForLog(tokenData.sub)}`)
 
     // Resolve handle from DID via PLC directory (no auth needed)
-    let handle = tokenData.sub;
+    let handle = tokenData.sub
     try {
-      const plcRes = await fetch(`${PLC_DIRECTORY_URL}/${tokenData.sub}`);
+      const plcRes = await fetch(`${PLC_DIRECTORY_URL}/${tokenData.sub}`)
       if (plcRes.ok) {
-        const plcData = (await plcRes.json()) as { alsoKnownAs?: string[] };
+        const plcData = (await plcRes.json()) as { alsoKnownAs?: string[] }
         const atUri = plcData.alsoKnownAs?.find((u: string) =>
-          u.startsWith("at://"),
-        );
+          u.startsWith('at://'),
+        )
         if (atUri) {
-          handle = atUri.replace("at://", "");
+          handle = atUri.replace('at://', '')
         }
       }
     } catch {
-      console.warn("[oauth/callback] Could not resolve handle from PLC");
+      console.warn('[oauth/callback] Could not resolve handle from PLC')
     }
 
     // Create signed user session cookie
@@ -188,24 +184,24 @@ export async function GET(request: NextRequest) {
       userDid: tokenData.sub,
       userHandle: handle,
       createdAt: Date.now(),
-    });
+    })
 
     // Delete OAuth cookie, set user session cookie
-    cookieStore.delete(OAUTH_COOKIE);
+    cookieStore.delete(OAUTH_COOKIE)
     cookieStore.set(userCookie.name, userCookie.value, {
       httpOnly: true,
       secure: true,
-      sameSite: "lax",
+      sameSite: 'lax',
       maxAge: 60 * 60 * 24,
-      path: "/",
-    });
+      path: '/',
+    })
 
-    return NextResponse.redirect(new URL("/welcome", baseUrl));
+    return NextResponse.redirect(new URL('/welcome', baseUrl))
   } catch (err) {
     console.error(
-      "[oauth/callback] Error:",
-      err instanceof Error ? err.message : "Unknown error",
-    );
-    return NextResponse.redirect(new URL("/?error=auth_failed", baseUrl));
+      '[oauth/callback] Error:',
+      err instanceof Error ? err.message : 'Unknown error',
+    )
+    return NextResponse.redirect(new URL('/?error=auth_failed', baseUrl))
   }
 }
