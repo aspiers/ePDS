@@ -58,6 +58,19 @@ request format, authorization redirect, token exchange, and client metadata.
   set a password later
 - CSRF protection, HttpOnly + SameSite cookies, HSTS, X-Frame-Options
 
+## AI Agent Skill
+
+An [agent skill](https://github.com/vercel-labs/skills) is available for AI
+coding agents (Claude Code, Cursor, Codex, etc.) to help implement login flows
+against ePDS. Install it with:
+
+```bash
+npx skills add hypercerts-org/ePDS --skill epds-login
+```
+
+This installs the `epds-login` skill which covers PAR requests, DPoP proofs,
+token exchange, client metadata, and both login flows.
+
 ## Further Reading
 
 - [docs/flows.md](docs/flows.md) — login flows and full integration reference
