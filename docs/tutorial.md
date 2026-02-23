@@ -177,13 +177,13 @@ You can customise the OTP email and login page colours:
 The email template must be an HTML file containing at minimum a `{{code}}`
 placeholder. Supported template variables:
 
-| Variable | Description |
-| --- | --- |
-| `{{code}}` | The 8-digit OTP code (required) |
-| `{{app_name}}` | Value of `client_name` from your metadata |
-| `{{logo_uri}}` | Value of `logo_uri` from your metadata |
-| `{{#is_new_user}}...{{/is_new_user}}` | Shown only on first sign-up |
-| `{{^is_new_user}}...{{/is_new_user}}` | Shown only on subsequent sign-ins |
+| Variable                              | Description                               |
+| ------------------------------------- | ----------------------------------------- |
+| `{{code}}`                            | The 8-digit OTP code (required)           |
+| `{{app_name}}`                        | Value of `client_name` from your metadata |
+| `{{logo_uri}}`                        | Value of `logo_uri` from your metadata    |
+| `{{#is_new_user}}...{{/is_new_user}}` | Shown only on first sign-up               |
+| `{{^is_new_user}}...{{/is_new_user}}` | Shown only on subsequent sign-ins         |
 
 ### Security helpers
 
@@ -195,8 +195,8 @@ ePDS uses two standard security mechanisms to protect the login flow:
   anyone who steals it
 
 You don't need to understand the details — just copy these helper functions
-(from the [maearth-demo](https://github.com/hypercerts-org/maearth-demo) app)
-and call them as shown in the code examples below:
+(from [packages/demo](../packages/demo)) and call them as shown in the code
+examples below:
 
 ```typescript
 import * as crypto from 'node:crypto'
@@ -307,7 +307,10 @@ const parBody = new URLSearchParams({
 // First attempt (will get a 400 with dpop-nonce)
 let parRes = await fetch(parEndpoint, {
   method: 'POST',
-  headers: { 'Content-Type': 'application/x-www-form-urlencoded', DPoP: dpopProof },
+  headers: {
+    'Content-Type': 'application/x-www-form-urlencoded',
+    DPoP: dpopProof,
+  },
   body: parBody.toString(),
 })
 
@@ -315,10 +318,19 @@ let parRes = await fetch(parEndpoint, {
 if (!parRes.ok) {
   const dpopNonce = parRes.headers.get('dpop-nonce')
   if (dpopNonce && parRes.status === 400) {
-    dpopProof = createDpopProof({ privateKey, jwk: publicJwk, method: 'POST', url: parEndpoint, nonce: dpopNonce })
+    dpopProof = createDpopProof({
+      privateKey,
+      jwk: publicJwk,
+      method: 'POST',
+      url: parEndpoint,
+      nonce: dpopNonce,
+    })
     parRes = await fetch(parEndpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', DPoP: dpopProof },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        DPoP: dpopProof,
+      },
       body: parBody.toString(),
     })
   }
@@ -377,10 +389,18 @@ const tokenBody = new URLSearchParams({
 })
 
 // First attempt
-let dpopProof = createDpopProof({ privateKey, jwk: publicJwk, method: 'POST', url: tokenEndpoint })
+let dpopProof = createDpopProof({
+  privateKey,
+  jwk: publicJwk,
+  method: 'POST',
+  url: tokenEndpoint,
+})
 let tokenRes = await fetch(tokenEndpoint, {
   method: 'POST',
-  headers: { 'Content-Type': 'application/x-www-form-urlencoded', DPoP: dpopProof },
+  headers: {
+    'Content-Type': 'application/x-www-form-urlencoded',
+    DPoP: dpopProof,
+  },
   body: tokenBody.toString(),
 })
 
@@ -388,10 +408,19 @@ let tokenRes = await fetch(tokenEndpoint, {
 if (!tokenRes.ok) {
   const dpopNonce = tokenRes.headers.get('dpop-nonce')
   if (dpopNonce) {
-    dpopProof = createDpopProof({ privateKey, jwk: publicJwk, method: 'POST', url: tokenEndpoint, nonce: dpopNonce })
+    dpopProof = createDpopProof({
+      privateKey,
+      jwk: publicJwk,
+      method: 'POST',
+      url: tokenEndpoint,
+      nonce: dpopNonce,
+    })
     tokenRes = await fetch(tokenEndpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', DPoP: dpopProof },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        DPoP: dpopProof,
+      },
       body: tokenBody.toString(),
     })
   }
@@ -407,7 +436,8 @@ handle via the PLC directory:
 ```typescript
 const plcRes = await fetch(`https://plc.directory/${userDid}`)
 const { alsoKnownAs } = await plcRes.json()
-const handle = alsoKnownAs?.find((u: string) => u.startsWith('at://'))
+const handle = alsoKnownAs
+  ?.find((u: string) => u.startsWith('at://'))
   ?.replace('at://', '')
 // e.g. "a3x9kf.epds-poc1.example.com"
 ```

@@ -5,7 +5,14 @@ description: Implement AT Protocol OAuth login against an ePDS instance. Use whe
 
 # Implementing ePDS Login
 
-ePDS uses standard AT Protocol OAuth (PAR + PKCE + DPoP) with email OTP authentication.
+ePDS lets your users sign in to [AT Protocol](https://atproto.com/) apps — like
+[Bluesky](https://bsky.app/) — using familiar login methods: **email OTP**, **Google**,
+**GitHub**, or any other provider [Better Auth](https://www.better-auth.com/) supports.
+Under the hood it is a standard AT Protocol PDS wrapped with a pluggable authentication
+layer. Users just sign in with their email or social account and get a presence in the
+AT Protocol universe (a DID, a handle, a data repository) automatically provisioned.
+
+From your app's perspective, ePDS uses standard AT Protocol OAuth (PAR + PKCE + DPoP).
 The reference implementation is `packages/demo` in the [ePDS repository](https://github.com/hypercerts-org/ePDS).
 
 ## Two Flows

@@ -48,7 +48,7 @@ Two patterns are supported depending on whether your app collects the user's ema
 - **Flow 2** — your app has a simple "Login" button: ePDS shows its own email input
   form and handles the whole login UI.
 
-See [docs/flows.md](docs/flows.md) for the full integration guide including PAR
+See [docs/tutorial.md](docs/tutorial.md) for the full integration guide including PAR
 request format, authorization redirect, token exchange, and client metadata.
 
 ## Security
@@ -73,7 +73,7 @@ token exchange, client metadata, and both login flows.
 
 ## Further Reading
 
-- [docs/flows.md](docs/flows.md) — login flows and full integration reference
+- [docs/tutorial.md](docs/tutorial.md) — login flows and integration tutorial
 - [docs/architecture.md](docs/architecture.md) — internal design and package structure
 - [docs/deployment.md](docs/deployment.md) — production deployment with Docker
 - [docs/development.md](docs/development.md) — local development setup
