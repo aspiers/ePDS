@@ -11,9 +11,23 @@ import { AppLogo } from './components/AppLogo'
  * /api/oauth/login which starts the OAuth flow via PAR.
  */
 
+const ERROR_MESSAGES: Record<string, string> = {
+  auth_failed: 'Authentication failed. Please try again.',
+  par_failed:
+    'Could not start login — the PDS rejected the request. Check server logs.',
+  invalid_email: 'Please enter a valid email address.',
+  invalid_handle: 'Please enter a valid handle (e.g. you.bsky.social).',
+  token_failed: 'Login could not be completed — token exchange failed.',
+  state_mismatch:
+    'Login session expired or was tampered with. Please try again.',
+}
+
 function LoginForm() {
   const searchParams = useSearchParams()
-  const error = searchParams.get('error')
+  const errorCode = searchParams.get('error')
+  const errorMessage = errorCode
+    ? ERROR_MESSAGES[errorCode] || `Unexpected error: ${errorCode}`
+    : null
   const [submitting, setSubmitting] = useState(false)
   const [mode, setMode] = useState<'email' | 'handle'>('email')
 
@@ -58,7 +72,7 @@ function LoginForm() {
           </p>
         </div>
 
-        {error && (
+        {errorMessage && (
           <div
             style={{
               background: '#fef2f2',
@@ -71,7 +85,7 @@ function LoginForm() {
               margin: '0 auto 16px',
             }}
           >
-            {decodeURIComponent(error)}
+            {errorMessage}
           </div>
         )}
 
