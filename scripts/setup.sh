@@ -37,17 +37,154 @@ read_env_var() {
   grep -E "^${var}=" "$file" 2>/dev/null | head -1 | cut -d'=' -f2-
 }
 
-# Copy shared secrets from the top-level .env into a per-package .env.
-# Only overwrites vars that are currently empty (set to bare "=").
+# Set a var in a file. Replaces the line if the var exists (commented or not),
+# otherwise appends.
+set_env_var() {
+  local var="$1" val="$2" file="$3"
+  if grep -qE "^#?\s*${var}=" "$file" 2>/dev/null; then
+    sed_inplace "s|^#\?\s*${var}=.*|${var}=${val}|" "$file"
+  else
+    echo "${var}=${val}" >> "$file"
+  fi
+}
+
+# Copy shared vars from the top-level .env into a per-package .env.
 inject_shared_vars() {
   local target="$1"
   for var in PDS_HOSTNAME PDS_PUBLIC_URL EPDS_CALLBACK_SECRET EPDS_INTERNAL_SECRET PDS_ADMIN_PASSWORD; do
     local val
     val=$(read_env_var "$var" .env)
     if [ -n "$val" ]; then
-      sed_inplace "s|^${var}=.*|${var}=${val}|" "$target"
+      set_env_var "$var" "$val" "$target"
     fi
   done
+}
+
+# Inject derived vars that depend on the hostname into a per-package .env.
+inject_derived_vars() {
+  local target="$1"
+
+  local auth_hostname pds_hostname
+  auth_hostname=$(read_env_var AUTH_HOSTNAME .env)
+  pds_hostname=$(read_env_var PDS_HOSTNAME .env)
+
+  # auth-service derived vars
+  if grep -qE "^AUTH_HOSTNAME=" "$target" 2>/dev/null && [ -n "$auth_hostname" ]; then
+    set_env_var AUTH_HOSTNAME "$auth_hostname" "$target"
+  fi
+  if grep -qE "^EPDS_LINK_BASE_URL=" "$target" 2>/dev/null && [ -n "$auth_hostname" ]; then
+    set_env_var EPDS_LINK_BASE_URL "https://${auth_hostname}/auth/verify" "$target"
+  fi
+  if grep -qE "^SMTP_FROM=" "$target" 2>/dev/null && [ -n "$pds_hostname" ]; then
+    set_env_var SMTP_FROM "noreply@${pds_hostname}" "$target"
+  fi
+
+  # pds-core derived vars
+  if grep -qE "^PDS_EMAIL_FROM_ADDRESS=" "$target" 2>/dev/null && [ -n "$pds_hostname" ]; then
+    set_env_var PDS_EMAIL_FROM_ADDRESS "noreply@${pds_hostname}" "$target"
+  fi
+}
+
+# ── Interactive prompts ──
+#
+# Ask for the PDS hostname and derive all other hostnames/URLs from it.
+# Runs only when creating a new .env (not on re-runs).
+
+prompt_hostname() {
+  echo "Configure your ePDS instance"
+  echo "──────────────────────────────"
+  echo ""
+  echo "Enter your PDS hostname. This is the domain your PDS will be"
+  echo "reachable at. User handles will be <random>.<hostname>."
+  echo ""
+  echo "Examples:"
+  echo "  pds.example.com          (production)"
+  echo "  localhost                 (local dev without TLS)"
+  echo ""
+
+  local pds_hostname
+  read -rp "PDS hostname: " pds_hostname
+  if [ -z "$pds_hostname" ]; then
+    echo "No hostname entered, using 'localhost'."
+    pds_hostname="localhost"
+  fi
+
+  # Derive auth hostname
+  local auth_hostname
+  if [ "$pds_hostname" = "localhost" ]; then
+    auth_hostname="localhost"
+  else
+    auth_hostname="auth.${pds_hostname}"
+  fi
+
+  echo ""
+  echo "Auth hostname will be: ${auth_hostname}"
+  echo ""
+
+  # Derive protocol (http for localhost, https for everything else)
+  local proto="https"
+  if [ "$pds_hostname" = "localhost" ] || [[ "$pds_hostname" == *.localhost ]]; then
+    proto="http"
+  fi
+
+  local pds_public_url="${proto}://${pds_hostname}"
+  # Append port for localhost
+  if [ "$pds_hostname" = "localhost" ]; then
+    pds_public_url="http://localhost:3000"
+  fi
+
+  # Set in top-level .env
+  set_env_var PDS_HOSTNAME "$pds_hostname" .env
+  set_env_var PDS_PUBLIC_URL "$pds_public_url" .env
+  set_env_var AUTH_HOSTNAME "$auth_hostname" .env
+  set_env_var EPDS_LINK_BASE_URL "${proto}://${auth_hostname}/auth/verify" .env
+  set_env_var SMTP_FROM "noreply@${pds_hostname}" .env
+  set_env_var PDS_EMAIL_FROM_ADDRESS "noreply@${pds_hostname}" .env
+
+  echo "  Set PDS_HOSTNAME=${pds_hostname}"
+  echo "  Set PDS_PUBLIC_URL=${pds_public_url}"
+  echo "  Set AUTH_HOSTNAME=${auth_hostname}"
+  echo "  Set EPDS_LINK_BASE_URL=${proto}://${auth_hostname}/auth/verify"
+  echo "  Set SMTP_FROM=noreply@${pds_hostname}"
+  echo "  Set PDS_EMAIL_FROM_ADDRESS=noreply@${pds_hostname}"
+}
+
+prompt_demo() {
+  echo ""
+  echo "Configure the demo app (optional)"
+  echo "──────────────────────────────────"
+  echo ""
+  echo "The demo app needs to know its own public URL and where to find"
+  echo "the PDS and auth service. Press Enter to accept defaults."
+  echo ""
+
+  local pds_public_url auth_hostname proto
+  pds_public_url=$(read_env_var PDS_PUBLIC_URL .env)
+  auth_hostname=$(read_env_var AUTH_HOSTNAME .env)
+  proto="https"
+  if [[ "$pds_public_url" == http://* ]]; then
+    proto="http"
+  fi
+
+  local default_demo_url="http://127.0.0.1:3002"
+  local default_auth_endpoint="${proto}://${auth_hostname}/oauth/authorize"
+  # For localhost, auth endpoint uses direct port
+  if [ "$auth_hostname" = "localhost" ]; then
+    default_auth_endpoint="http://localhost:3001/oauth/authorize"
+  fi
+
+  local demo_url
+  read -rp "Demo public URL [${default_demo_url}]: " demo_url
+  demo_url="${demo_url:-$default_demo_url}"
+
+  set_env_var PUBLIC_URL "$demo_url" packages/demo/.env
+  set_env_var PDS_URL "$pds_public_url" packages/demo/.env
+  set_env_var AUTH_ENDPOINT "$default_auth_endpoint" packages/demo/.env
+
+  echo ""
+  echo "  Set PUBLIC_URL=${demo_url}"
+  echo "  Set PDS_URL=${pds_public_url}"
+  echo "  Set AUTH_ENDPOINT=${default_auth_endpoint}"
 }
 
 # ── Top-level .env ──
@@ -64,15 +201,13 @@ if [ ! -f .env ]; then
   done
 
   echo ""
+  prompt_hostname
+
+  echo ""
   echo "You still need to configure:"
-  echo "  1. PDS_HOSTNAME         - Your domain (e.g. pds.example.com)"
-  echo "  2. PDS_PUBLIC_URL       - Full public URL (e.g. https://pds.example.com)"
-  echo "  3. AUTH_HOSTNAME        - Auth subdomain (e.g. auth.pds.example.com)"
-  echo "  4. PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX - Generate with:"
+  echo "  1. PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX - Generate with:"
   echo "     openssl ecparam -name secp256k1 -genkey -noout | openssl ec -text -noout 2>/dev/null | grep priv -A 3 | tail -n +2 | tr -d '[:space:]:'"
-  echo "  5. SMTP settings        - For email delivery"
-  echo "  6. EPDS_LINK_BASE_URL   - Must match your AUTH_HOSTNAME"
-  echo "  7. SMTP_FROM            - Must match your domain"
+  echo "  2. SMTP settings        - For email delivery (see .env)"
 else
   echo ".env already exists, skipping generation."
 fi
@@ -81,7 +216,7 @@ fi
 #
 # Each package has its own .env.example. The per-package .env files are used by:
 #   - pnpm dev:demo (Next.js loads packages/demo/.env automatically)
-#   - Railway (each service reads only its own vars)
+#   - Railway (each service reads only its own vars — copy-paste into raw editor)
 # For docker-compose and pnpm dev (core + auth), the top-level .env is sufficient.
 
 echo ""
@@ -91,6 +226,7 @@ if [ ! -f packages/pds-core/.env ]; then
   echo "Creating packages/pds-core/.env..."
   cp packages/pds-core/.env.example packages/pds-core/.env
   inject_shared_vars packages/pds-core/.env
+  inject_derived_vars packages/pds-core/.env
   for var in PDS_JWT_SECRET PDS_DPOP_SECRET; do
     secret=$(generate_secret)
     sed_inplace "s|^${var}=$|${var}=${secret}|" packages/pds-core/.env
@@ -105,6 +241,7 @@ if [ ! -f packages/auth-service/.env ]; then
   echo "Creating packages/auth-service/.env..."
   cp packages/auth-service/.env.example packages/auth-service/.env
   inject_shared_vars packages/auth-service/.env
+  inject_derived_vars packages/auth-service/.env
   for var in AUTH_SESSION_SECRET AUTH_CSRF_SECRET; do
     secret=$(generate_secret)
     sed_inplace "s|^${var}=$|${var}=${secret}|" packages/auth-service/.env
@@ -122,6 +259,8 @@ if [ ! -f packages/demo/.env ]; then
   secret=$(generate_secret)
   sed_inplace "s|^# SESSION_SECRET=.*|SESSION_SECRET=${secret}|" packages/demo/.env
   echo "  Generated SESSION_SECRET"
+
+  prompt_demo
 else
   echo "packages/demo/.env already exists, skipping."
 fi
@@ -146,7 +285,7 @@ echo ""
 echo "=== Setup complete ==="
 echo ""
 echo "Next steps:"
-echo "  1. Edit .env with your domain and secrets (see above)"
-echo "  2. pnpm dev              - Start all services in dev mode"
+echo "  1. Review .env files and adjust if needed"
+echo "  2. pnpm dev              - Start core + auth in dev mode"
 echo "  3. pnpm dev:demo         - Start the demo app (separate terminal)"
 echo "  4. docker compose up -d  - Or start with Docker instead"
