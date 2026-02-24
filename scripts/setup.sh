@@ -227,11 +227,8 @@ prompt_smtp() {
 
 prompt_demo() {
   echo ""
-  echo "Configure the demo app (optional)"
-  echo "──────────────────────────────────"
-  echo ""
-  echo "The demo app needs to know its own public URL and where to find"
-  echo "the PDS and auth service. Press Enter to accept defaults."
+  echo "Configure the demo app"
+  echo "──────────────────────"
   echo ""
 
   local pds_public_url auth_hostname proto
@@ -242,32 +239,25 @@ prompt_demo() {
     proto="http"
   fi
 
-  # Compute defaults, then override with existing values if present
-  local default_demo_url="http://127.0.0.1:3002"
-  local default_pds_url="$pds_public_url"
-  local default_auth_endpoint="${proto}://${auth_hostname}/oauth/authorize"
+  # PDS_URL and AUTH_ENDPOINT are derived — no need to prompt
+  local auth_endpoint="${proto}://${auth_hostname}/oauth/authorize"
   if [ "$auth_hostname" = "localhost" ]; then
-    default_auth_endpoint="http://localhost:3001/oauth/authorize"
+    auth_endpoint="http://localhost:3001/oauth/authorize"
   fi
 
-  local existing_demo_url existing_pds_url existing_auth_endpoint
+  local existing_demo_url
   existing_demo_url=$(read_env_var PUBLIC_URL packages/demo/.env)
-  existing_pds_url=$(read_env_var PDS_URL packages/demo/.env)
-  existing_auth_endpoint=$(read_env_var AUTH_ENDPOINT packages/demo/.env)
 
-  local demo_url demo_pds_url demo_auth_endpoint
-  read -rep "Demo public URL: " -i "${existing_demo_url:-$default_demo_url}" demo_url
-  read -rep "PDS URL: " -i "${existing_pds_url:-$default_pds_url}" demo_pds_url
-  read -rep "Auth endpoint: " -i "${existing_auth_endpoint:-$default_auth_endpoint}" demo_auth_endpoint
+  local demo_url
+  read -rep "Demo public URL: " -i "${existing_demo_url:-http://127.0.0.1:3002}" demo_url
 
   set_env_var PUBLIC_URL "$demo_url" packages/demo/.env
-  set_env_var PDS_URL "$demo_pds_url" packages/demo/.env
-  set_env_var AUTH_ENDPOINT "$demo_auth_endpoint" packages/demo/.env
+  set_env_var PDS_URL "$pds_public_url" packages/demo/.env
+  set_env_var AUTH_ENDPOINT "$auth_endpoint" packages/demo/.env
 
-  echo ""
   echo "  Set PUBLIC_URL=${demo_url}"
-  echo "  Set PDS_URL=${demo_pds_url}"
-  echo "  Set AUTH_ENDPOINT=${demo_auth_endpoint}"
+  echo "  Set PDS_URL=${pds_public_url}"
+  echo "  Set AUTH_ENDPOINT=${auth_endpoint}"
 }
 
 # ── Setup stages ──
