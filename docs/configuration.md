@@ -1,54 +1,91 @@
 # Configuration
 
-Copy `.env.example` to `.env` and fill in your values.
+Each package has its own `.env.example` documenting the variables it reads:
 
-## PDS Core
+- [`packages/pds-core/.env.example`](../packages/pds-core/.env.example)
+- [`packages/auth-service/.env.example`](../packages/auth-service/.env.example)
+- [`packages/demo/.env.example`](../packages/demo/.env.example)
 
-| Variable                                    | Description                                                                              |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `PDS_HOSTNAME`                              | Your PDS domain (e.g. `epds-poc1.example.com`) — handles will be `<random>.PDS_HOSTNAME` |
-| `PDS_PORT`                                  | Port for PDS Core (default `3000`)                                                       |
-| `PDS_PUBLIC_URL`                            | Full public URL of the PDS, used as OAuth issuer (e.g. `https://epds-poc1.example.com`)  |
-| `PDS_DATA_DIRECTORY`                        | Path to data directory (default `/data`)                                                 |
-| `PDS_DID_PLC_URL`                           | AT Protocol PLC directory URL (default `https://plc.directory`)                          |
-| `PDS_BSKY_APP_VIEW_URL`                     | Bluesky app view URL (default `https://api.bsky.app`)                                    |
-| `PDS_BSKY_APP_VIEW_DID`                     | Bluesky app view DID (default `did:web:api.bsky.app`)                                    |
-| `PDS_CRAWLERS`                              | AT Protocol crawlers (default `https://bsky.network`)                                    |
-| `PDS_JWT_SECRET`                            | Secret for JWT signing — generate with `openssl rand -hex 32`                            |
-| `PDS_DPOP_SECRET`                           | Secret for DPoP — generate with `openssl rand -hex 32`                                   |
-| `PDS_ADMIN_PASSWORD`                        | PDS admin API password                                                                   |
-| `PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX` | secp256k1 private key for PLC rotation — see [deployment.md](deployment.md)              |
-| `PDS_INTERNAL_URL`                          | Internal URL for auth→PDS communication (e.g. `http://pds:3000` in Docker)               |
-| `MAGIC_INVITE_CODE`                         | Pre-generated invite code for account creation (required if `PDS_INVITE_REQUIRED=true`)  |
+For quick local setup, run `./scripts/setup.sh` — it copies the top-level
+`.env.example` to `.env` and auto-generates all secrets.
 
-## Auth Service
+## Deployment contexts
 
-| Variable              | Description                                                                                |
-| --------------------- | ------------------------------------------------------------------------------------------ |
-| `AUTH_HOSTNAME`       | Auth subdomain (e.g. `auth.epds-poc1.example.com`) — must be a subdomain of `PDS_HOSTNAME` |
-| `AUTH_PORT`           | Port for Auth Service (default `3001`)                                                     |
-| `AUTH_SESSION_SECRET` | Session secret — generate with `openssl rand -hex 32`                                      |
-| `AUTH_CSRF_SECRET`    | CSRF secret — generate with `openssl rand -hex 32`                                         |
+| Context             | How vars are loaded                                                                                           |
+| ------------------- | ------------------------------------------------------------------------------------------------------------- |
+| **docker-compose**  | Loads the top-level `.env` via `env_file` for core, auth, and caddy.                                          |
+| **Railway**         | Set per-service in the dashboard. Use shared variable groups for `[shared]` vars.                             |
+| **`pnpm dev`**      | `dotenv.config()` in pds-core loads the top-level `.env`. Auth-service inherits the same process environment. |
+| **`pnpm dev:demo`** | Next.js loads `packages/demo/.env` automatically.                                                             |
 
-## Shared Secrets
+## Shared variables
 
-Both services must have matching values for these:
+These must have **identical values** in pds-core and auth-service. They are
+marked `[shared]` in the per-package `.env.example` files.
 
 | Variable                | Description                                                                                             |
 | ----------------------- | ------------------------------------------------------------------------------------------------------- |
+| `PDS_HOSTNAME`          | Your PDS domain — handles will be `<random>.PDS_HOSTNAME`                                               |
+| `PDS_PUBLIC_URL`        | Full public URL of the PDS, used as OAuth issuer (e.g. `https://pds.example.com`)                       |
 | `MAGIC_CALLBACK_SECRET` | HMAC-SHA256 secret signing the `/oauth/magic-callback` redirect — generate with `openssl rand -hex 32`  |
 | `MAGIC_INTERNAL_SECRET` | Shared secret for internal service-to-service calls (auth → PDS) — generate with `openssl rand -hex 32` |
+| `PDS_ADMIN_PASSWORD`    | PDS admin API password (auth-service uses it for account provisioning)                                  |
+| `NODE_ENV`              | Set to `development` for dev mode (disables secure cookies)                                             |
 
-## Better Auth
+## PDS Core
+
+| Variable                                    | Description                                                                    |
+| ------------------------------------------- | ------------------------------------------------------------------------------ |
+| `PDS_PORT`                                  | Port for PDS Core (default `3000`)                                             |
+| `PDS_DATA_DIRECTORY`                        | Path to data directory (default `/data`)                                       |
+| `PDS_DID_PLC_URL`                           | AT Protocol PLC directory URL (default `https://plc.directory`)                |
+| `PDS_BSKY_APP_VIEW_URL`                     | Bluesky app view URL (default `https://api.bsky.app`)                          |
+| `PDS_BSKY_APP_VIEW_DID`                     | Bluesky app view DID (default `did:web:api.bsky.app`)                          |
+| `PDS_CRAWLERS`                              | AT Protocol crawlers (default `https://bsky.network`)                          |
+| `PDS_JWT_SECRET`                            | Secret for JWT signing — generate with `openssl rand -hex 32`                  |
+| `PDS_DPOP_SECRET`                           | Secret for DPoP — generate with `openssl rand -hex 32`                         |
+| `PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX` | secp256k1 private key for PLC rotation — see [deployment.md](deployment.md)    |
+| `PDS_EMAIL_SMTP_URL`                        | SMTP URL (e.g. `smtps://user:pass@smtp.resend.com:465`)                        |
+| `PDS_EMAIL_FROM_ADDRESS`                    | Sender address for PDS emails                                                  |
+| `PDS_BLOBSTORE_DISK_LOCATION`               | Path to blob storage directory (default `/data/blobs`)                         |
+| `MAGIC_INVITE_CODE`                         | Pre-generated invite code for account creation (if `PDS_INVITE_REQUIRED=true`) |
+
+Optional PDS email variables:
+
+| Variable                        | Description                                      |
+| ------------------------------- | ------------------------------------------------ |
+| `PDS_CONTACT_EMAIL_ADDRESS`     | Contact address shown in PDS well-known metadata |
+| `PDS_MODERATION_EMAIL_SMTP_URL` | Separate SMTP for moderation reports             |
+| `PDS_MODERATION_EMAIL_ADDRESS`  | Moderation report address                        |
+
+## Auth Service
+
+| Variable              | Description                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------------- |
+| `AUTH_HOSTNAME`       | Auth subdomain (e.g. `auth.pds.example.com`) — must be a subdomain of `PDS_HOSTNAME`                    |
+| `AUTH_PORT`           | Port for Auth Service (default `3001`)                                                                  |
+| `AUTH_SESSION_SECRET` | Session secret — generate with `openssl rand -hex 32`                                                   |
+| `AUTH_CSRF_SECRET`    | CSRF secret — generate with `openssl rand -hex 32`                                                      |
+| `PDS_INTERNAL_URL`    | Internal URL for auth→PDS communication in Docker (e.g. `http://core:3000`). Not needed outside Docker. |
+
+### Magic link settings
+
+| Variable                    | Description                                                |
+| --------------------------- | ---------------------------------------------------------- |
+| `MAGIC_LINK_EXPIRY_MINUTES` | Link expiry in minutes (default `10`)                      |
+| `MAGIC_LINK_BASE_URL`       | Base URL for verification links — must match AUTH_HOSTNAME |
+
+### Better Auth session
 
 | Variable             | Description                                             |
 | -------------------- | ------------------------------------------------------- |
 | `SESSION_EXPIRES_IN` | Session lifetime in seconds (default `604800` = 7 days) |
 | `SESSION_UPDATE_AGE` | Session update age in seconds (default `86400` = 1 day) |
 
-## Social Providers (optional)
+### Social providers (optional)
 
-Both variables must be set to enable a provider. When set, social login buttons appear on the login page.
+Both ID and SECRET must be set to enable a provider. When set, social login
+buttons appear on the login page.
 
 | Variable               | Description                                                                                  |
 | ---------------------- | -------------------------------------------------------------------------------------------- |
@@ -57,7 +94,7 @@ Both variables must be set to enable a provider. When set, social login buttons 
 | `GITHUB_CLIENT_ID`     | GitHub OAuth client ID — [GitHub Developer Settings](https://github.com/settings/developers) |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret                                                                   |
 
-## Email
+### Email
 
 | Variable                | Description                                                         |
 | ----------------------- | ------------------------------------------------------------------- |
@@ -74,33 +111,39 @@ Both variables must be set to enable a provider. When set, social login buttons 
 | `AWS_SES_SMTP_PASS`     | AWS SES SMTP password                                               |
 | `POSTMARK_SERVER_TOKEN` | Postmark server token                                               |
 
-## PDS Email (used by @atproto/pds)
-
-Used for password reset, confirm-email, and other AT Protocol built-in emails.
-
-| Variable                        | Description                                               |
-| ------------------------------- | --------------------------------------------------------- |
-| `PDS_EMAIL_SMTP_URL`            | SMTP URL (e.g. `smtps://user:pass@smtp.resend.com:465`)   |
-| `PDS_EMAIL_FROM_ADDRESS`        | Sender address for PDS emails                             |
-| `PDS_CONTACT_EMAIL_ADDRESS`     | Optional contact address shown in PDS well-known metadata |
-| `PDS_MODERATION_EMAIL_SMTP_URL` | Optional separate SMTP for moderation reports             |
-| `PDS_MODERATION_EMAIL_ADDRESS`  | Optional moderation report address                        |
-
-## Blobstore
-
-| Variable                      | Description                                            |
-| ----------------------------- | ------------------------------------------------------ |
-| `PDS_BLOBSTORE_DISK_LOCATION` | Path to blob storage directory (default `/data/blobs`) |
-
-## Database
+### Database
 
 | Variable      | Description                                                    |
 | ------------- | -------------------------------------------------------------- |
 | `DB_LOCATION` | Path to the ePDS SQLite database (default `/data/epds.sqlite`) |
 
+## Demo
+
+The demo is standalone — it does not share variables with pds-core or
+auth-service.
+
+| Variable         | Description                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------ |
+| `PUBLIC_URL`     | Public URL of the demo app (used for OAuth `client_id` and `redirect_uri`)           |
+| `PDS_URL`        | URL of the ePDS instance to authenticate against                                     |
+| `AUTH_ENDPOINT`  | Auth service's OAuth authorize URL (e.g. `https://auth.pds.example/oauth/authorize`) |
+| `SESSION_SECRET` | Session signing secret — generate with `openssl rand -base64 32`                     |
+
+Optional:
+
+| Variable            | Description                                                                  |
+| ------------------- | ---------------------------------------------------------------------------- |
+| `PLC_DIRECTORY_URL` | PLC directory for DID-to-handle resolution (default `https://plc.directory`) |
+
+## Docker / Caddy
+
+| Variable        | Description                                                |
+| --------------- | ---------------------------------------------------------- |
+| `PDS_UPSTREAM`  | Override PDS reverse proxy upstream (default `core:3000`)  |
+| `AUTH_UPSTREAM` | Override auth reverse proxy upstream (default `auth:3001`) |
+
 ## Runtime
 
-| Variable       | Description                                                 |
-| -------------- | ----------------------------------------------------------- |
-| `NODE_ENV`     | Set to `development` for dev mode (disables secure cookies) |
-| `PDS_DEV_MODE` | Set to `true` for PDS dev mode                              |
+| Variable       | Description                    |
+| -------------- | ------------------------------ |
+| `PDS_DEV_MODE` | Set to `true` for PDS dev mode |
