@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express'
 import * as crypto from 'node:crypto'
 
-const CSRF_COOKIE = 'magic_csrf'
+const CSRF_COOKIE = 'epds_csrf'
 const CSRF_HEADER = 'x-csrf-token'
 
 export function csrfProtection(_secret: string) {
