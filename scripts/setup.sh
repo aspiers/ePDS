@@ -49,7 +49,7 @@ if [ ! -f .env ]; then
   echo "  4. PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX - Generate with:"
   echo "     openssl ecparam -name secp256k1 -genkey -noout | openssl ec -text -noout 2>/dev/null | grep priv -A 3 | tail -n +2 | tr -d '[:space:]:'"
   echo "  5. SMTP settings        - For email delivery"
-  echo "  6. MAGIC_LINK_BASE_URL  - Must match your AUTH_HOSTNAME"
+  echo "  6. EPDS_LINK_BASE_URL  - Must match your AUTH_HOSTNAME"
   echo "  7. SMTP_FROM            - Must match your domain"
   echo ""
   echo "See per-package .env.example files for full documentation:"

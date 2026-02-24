@@ -68,12 +68,12 @@ Optional PDS email variables:
 | `AUTH_CSRF_SECRET`    | CSRF secret — generate with `openssl rand -hex 32`                                                      |
 | `PDS_INTERNAL_URL`    | Internal URL for auth→PDS communication in Docker (e.g. `http://core:3000`). Not needed outside Docker. |
 
-### Magic link settings
+### Verification link settings
 
 | Variable                    | Description                                                |
 | --------------------------- | ---------------------------------------------------------- |
-| `MAGIC_LINK_EXPIRY_MINUTES` | Link expiry in minutes (default `10`)                      |
-| `MAGIC_LINK_BASE_URL`       | Base URL for verification links — must match AUTH_HOSTNAME |
+| `EPDS_LINK_EXPIRY_MINUTES` | Link expiry in minutes (default `10`)                      |
+| `EPDS_LINK_BASE_URL`       | Base URL for verification links — must match AUTH_HOSTNAME |
 
 ### Better Auth session
 
