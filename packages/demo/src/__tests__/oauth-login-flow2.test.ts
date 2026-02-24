@@ -40,7 +40,10 @@ vi.mock('next/server', () => {
     cookies: MockCookies
     _url: string
 
-    constructor(body: string | null, init?: { status?: number; headers?: Record<string, string> }) {
+    constructor(
+      body: string | null,
+      init?: { status?: number; headers?: Record<string, string> },
+    ) {
       this.status = init?.status ?? 200
       this.headers = new MockHeaders()
       this.cookies = new MockCookies()
@@ -102,7 +105,7 @@ describe('OAuth login route (Flow 2)', () => {
       headers: new Headers(),
     })
 
-    const resp = await GET(makeRequest()) as unknown as {
+    const resp = (await GET(makeRequest())) as unknown as {
       status: number
       _url: string
       cookies: { entries(): Iterable<[string, { value: string }]> }
@@ -123,14 +126,16 @@ describe('OAuth login route (Flow 2)', () => {
 
   it('PAR body has no login_hint in Flow 2', async () => {
     let capturedBody = ''
-    global.fetch = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
-      if (init?.body) capturedBody = init.body as string
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve(MOCK_PAR_RESPONSE),
-        headers: new Headers(),
+    global.fetch = vi
+      .fn()
+      .mockImplementation((_url: string, init?: RequestInit) => {
+        if (init?.body) capturedBody = init.body as string
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(MOCK_PAR_RESPONSE),
+          headers: new Headers(),
+        })
       })
-    })
 
     await GET(makeRequest())
 
@@ -147,7 +152,12 @@ describe('OAuth login route (Flow 2)', () => {
         // First call: 400 with dpop-nonce
         const headers = new Headers()
         headers.set('dpop-nonce', 'server-nonce-abc')
-        return Promise.resolve({ ok: false, status: 400, headers })
+        return Promise.resolve({
+          ok: false,
+          status: 400,
+          headers,
+          text: () => Promise.resolve('use_dpop_nonce'),
+        })
       }
       // Second call: success
       return Promise.resolve({
@@ -157,7 +167,7 @@ describe('OAuth login route (Flow 2)', () => {
       })
     })
 
-    const resp = await GET(makeRequest()) as unknown as {
+    const resp = (await GET(makeRequest())) as unknown as {
       status: number
       _url: string
     }
@@ -170,9 +180,12 @@ describe('OAuth login route (Flow 2)', () => {
   })
 
   it('returns 429 when rate limited', async () => {
-    vi.mocked(checkRateLimit).mockReturnValue({ allowed: false, retryAfter: 60 })
+    vi.mocked(checkRateLimit).mockReturnValue({
+      allowed: false,
+      retryAfter: 60,
+    })
 
-    const resp = await GET(makeRequest()) as unknown as {
+    const resp = (await GET(makeRequest())) as unknown as {
       status: number
       headers: { get(k: string): string | null }
     }
@@ -188,8 +201,10 @@ describe('OAuth login route (Flow 2)', () => {
       headers: new Headers(),
     })
 
-    const resp = await GET(makeRequest()) as unknown as {
-      cookies: { get(name: string): { value: string; options: unknown } | undefined }
+    const resp = (await GET(makeRequest())) as unknown as {
+      cookies: {
+        get(name: string): { value: string; options: unknown } | undefined
+      }
     }
 
     const cookie = resp.cookies.get(OAUTH_COOKIE)

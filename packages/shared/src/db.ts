@@ -372,7 +372,9 @@ export class EpdsDb {
 
   // ── Verification Token by CSRF (for polling) ──
 
-  getVerificationTokenByCsrf(csrfToken: string): VerificationTokenRow | undefined {
+  getVerificationTokenByCsrf(
+    csrfToken: string,
+  ): VerificationTokenRow | undefined {
     return this.db
       .prepare(
         `

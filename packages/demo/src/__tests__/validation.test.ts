@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { validateEmail, validateHandle, sanitizeForLog } from '../lib/validation'
+import {
+  validateEmail,
+  validateHandle,
+  sanitizeForLog,
+} from '../lib/validation'
 
 describe('validateEmail', () => {
   it('accepts valid emails', () => {

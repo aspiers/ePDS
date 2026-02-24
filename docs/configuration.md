@@ -23,14 +23,14 @@ For quick local setup, run `./scripts/setup.sh` — it copies the top-level
 These must have **identical values** in pds-core and auth-service. They are
 marked `[shared]` in the per-package `.env.example` files.
 
-| Variable                | Description                                                                                             |
-| ----------------------- | ------------------------------------------------------------------------------------------------------- |
-| `PDS_HOSTNAME`          | Your PDS domain — handles will be `<random>.PDS_HOSTNAME`                                               |
-| `PDS_PUBLIC_URL`        | Full public URL of the PDS, used as OAuth issuer (e.g. `https://pds.example.com`)                       |
-| `EPDS_CALLBACK_SECRET`  | HMAC-SHA256 secret signing the `/oauth/epds-callback` redirect — generate with `openssl rand -hex 32`   |
+| Variable               | Description                                                                                             |
+| ---------------------- | ------------------------------------------------------------------------------------------------------- |
+| `PDS_HOSTNAME`         | Your PDS domain — handles will be `<random>.PDS_HOSTNAME`                                               |
+| `PDS_PUBLIC_URL`       | Full public URL of the PDS, used as OAuth issuer (e.g. `https://pds.example.com`)                       |
+| `EPDS_CALLBACK_SECRET` | HMAC-SHA256 secret signing the `/oauth/epds-callback` redirect — generate with `openssl rand -hex 32`   |
 | `EPDS_INTERNAL_SECRET` | Shared secret for internal service-to-service calls (auth → PDS) — generate with `openssl rand -hex 32` |
-| `PDS_ADMIN_PASSWORD`    | PDS admin API password (auth-service uses it for account provisioning)                                  |
-| `NODE_ENV`              | Set to `development` for dev mode (disables secure cookies)                                             |
+| `PDS_ADMIN_PASSWORD`   | PDS admin API password (auth-service uses it for account provisioning)                                  |
+| `NODE_ENV`             | Set to `development` for dev mode (disables secure cookies)                                             |
 
 ## PDS Core
 
@@ -48,7 +48,7 @@ marked `[shared]` in the per-package `.env.example` files.
 | `PDS_EMAIL_SMTP_URL`                        | SMTP URL (e.g. `smtps://user:pass@smtp.resend.com:465`)                        |
 | `PDS_EMAIL_FROM_ADDRESS`                    | Sender address for PDS emails                                                  |
 | `PDS_BLOBSTORE_DISK_LOCATION`               | Path to blob storage directory (default `/data/blobs`)                         |
-| `EPDS_INVITE_CODE`                         | Pre-generated invite code for account creation (if `PDS_INVITE_REQUIRED=true`) |
+| `EPDS_INVITE_CODE`                          | Pre-generated invite code for account creation (if `PDS_INVITE_REQUIRED=true`) |
 
 Optional PDS email variables:
 
@@ -70,8 +70,8 @@ Optional PDS email variables:
 
 ### Verification link settings
 
-| Variable                    | Description                                                |
-| --------------------------- | ---------------------------------------------------------- |
+| Variable                   | Description                                                |
+| -------------------------- | ---------------------------------------------------------- |
 | `EPDS_LINK_EXPIRY_MINUTES` | Link expiry in minutes (default `10`)                      |
 | `EPDS_LINK_BASE_URL`       | Base URL for verification links — must match AUTH_HOSTNAME |
 

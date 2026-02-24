@@ -336,9 +336,7 @@ async function main() {
   // Replaces the old unauthenticated /_magic/check-email to prevent email enumeration.
   // Queries account.sqlite directly via the PDS accountManager — no mirror table needed.
   pds.app.get('/_internal/account-by-email', async (req, res) => {
-    if (
-      req.headers['x-internal-secret'] !== process.env.EPDS_INTERNAL_SECRET
-    ) {
+    if (req.headers['x-internal-secret'] !== process.env.EPDS_INTERNAL_SECRET) {
       res.status(401).json({ error: 'Unauthorized' })
       return
     }
