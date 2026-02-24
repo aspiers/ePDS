@@ -166,8 +166,8 @@ async function main() {
                 // passwordless — login is only possible via the magic OTP flow.
                 password: randomBytes(32).toString('hex'),
                 // Invite code is required when PDS_INVITE_REQUIRED is true (the default).
-                // MAGIC_INVITE_CODE should be a high-useCount code generated via the admin API.
-                inviteCode: process.env.MAGIC_INVITE_CODE,
+                // EPDS_INVITE_CODE should be a high-useCount code generated via the admin API.
+                inviteCode: process.env.EPDS_INVITE_CODE,
               },
             )
             did = account.sub

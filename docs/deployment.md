@@ -71,7 +71,7 @@ openssl rand -hex 32
 ## Generating an Invite Code
 
 If `PDS_INVITE_REQUIRED` is true (the default), generate a high-`useCount` invite code
-and set it as `MAGIC_INVITE_CODE`:
+and set it as `EPDS_INVITE_CODE`:
 
 ```bash
 curl -X POST https://<pds-hostname>/xrpc/com.atproto.server.createInviteCode \

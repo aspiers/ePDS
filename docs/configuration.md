@@ -48,7 +48,7 @@ marked `[shared]` in the per-package `.env.example` files.
 | `PDS_EMAIL_SMTP_URL`                        | SMTP URL (e.g. `smtps://user:pass@smtp.resend.com:465`)                        |
 | `PDS_EMAIL_FROM_ADDRESS`                    | Sender address for PDS emails                                                  |
 | `PDS_BLOBSTORE_DISK_LOCATION`               | Path to blob storage directory (default `/data/blobs`)                         |
-| `MAGIC_INVITE_CODE`                         | Pre-generated invite code for account creation (if `PDS_INVITE_REQUIRED=true`) |
+| `EPDS_INVITE_CODE`                         | Pre-generated invite code for account creation (if `PDS_INVITE_REQUIRED=true`) |
 
 Optional PDS email variables:
 

@@ -58,7 +58,7 @@ endpoint to issue an AT Protocol authorization code.
 - **Random handles**: users get a random handle (e.g. `a3x9kf.epds-poc1.example.com`)
   rather than an email-derived one, for privacy.
 
-- **Single invite code**: `MAGIC_INVITE_CODE` is a high-`useCount` invite code used for
+- **Single invite code**: `EPDS_INVITE_CODE` is a high-`useCount` invite code used for
   all account creation, avoiding the need to distribute individual invite codes.
 
 - **Passwordless accounts**: PDS accounts are created with a random unguessable password.
