@@ -68,7 +68,7 @@ export function createAccountSettingsRouter(
   const requireAuth = requireBetterAuth(auth)
 
   const pdsUrl = process.env.PDS_INTERNAL_URL || ctx.config.pdsPublicUrl
-  const internalSecret = process.env.MAGIC_INTERNAL_SECRET ?? ''
+  const internalSecret = process.env.EPDS_INTERNAL_SECRET ?? ''
 
   // GET /account - main settings page
   router.get('/account', requireAuth, async (req: Request, res: Response) => {

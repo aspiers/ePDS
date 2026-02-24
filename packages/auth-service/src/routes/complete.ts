@@ -89,7 +89,7 @@ export function createCompleteRouter(
     let isNewAccount = false
     try {
       const pdsUrl = process.env.PDS_INTERNAL_URL || ctx.config.pdsPublicUrl
-      const internalSecret = process.env.MAGIC_INTERNAL_SECRET
+      const internalSecret = process.env.EPDS_INTERNAL_SECRET
       const checkRes = await fetch(
         `${pdsUrl}/_internal/account-by-email?email=${encodeURIComponent(email)}`,
         {
