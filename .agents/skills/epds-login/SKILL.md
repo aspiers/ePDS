@@ -1,6 +1,6 @@
 ---
 name: epds-login
-description: Implement AT Protocol OAuth login against an ePDS instance. Use when building login flows, PAR requests, DPoP proofs, token exchange, or OTP authentication against ePDS (Certified Auth / magic-pds). Covers Flow 1 (app has email form, passes login_hint) and Flow 2 (auth server collects email).
+description: Implement AT Protocol OAuth login against an ePDS instance. Use when building passwordless OTP login flows, PAR requests, DPoP proofs, token exchange against ePDS (extended PDS from Certified). Covers Flow 1 (app has email form, passes login_hint) and Flow 2 (auth server collects email).
 ---
 
 # Implementing ePDS Login
