@@ -397,6 +397,12 @@ print_next_steps() {
   echo "  3. pnpm dev              - Start core + auth in dev mode"
   echo "  4. pnpm dev:demo         - Start the demo app (separate terminal)"
   echo "  5. docker compose up -d  - Or start with Docker instead"
+  echo ""
+  echo "For Railway deployment, paste the output of these commands into"
+  echo "each service's raw environment editor:"
+  echo "  grep -v '^\s*#' packages/pds-core/.env | grep -v '^\s*$'"
+  echo "  grep -v '^\s*#' packages/auth-service/.env | grep -v '^\s*$'"
+  echo "  grep -v '^\s*#' packages/demo/.env | grep -v '^\s*$'"
 }
 
 # ── Main ──
