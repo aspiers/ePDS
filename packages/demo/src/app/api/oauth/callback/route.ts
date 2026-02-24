@@ -17,7 +17,7 @@ import {
   restoreDpopKeyPair,
   createDpopProof,
   resolveDidToPds,
-  TOKEN_ENDPOINT,
+  PDS_URL,
   PLC_DIRECTORY_URL,
 } from '@/lib/auth'
 import { cookies } from 'next/headers'
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     }
 
     const codeVerifier = stateData.codeVerifier
-    const tokenUrl = stateData.tokenEndpoint || TOKEN_ENDPOINT
+    const tokenUrl = stateData.tokenEndpoint || `${PDS_URL}/oauth/token`
 
     const clientId = `${baseUrl}/client-metadata.json`
     const redirectUri = `${baseUrl}/api/oauth/callback`

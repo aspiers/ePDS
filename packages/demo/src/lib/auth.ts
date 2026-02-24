@@ -124,15 +124,9 @@ function derToRaw(der: Buffer): Buffer {
 }
 
 // PDS endpoints (defaults match docker-compose PDS_HOSTNAME=pds.example)
-// PDS_URL is the public URL used for browser redirects and client_id.
-// PDS_INTERNAL_URL is for server-to-server calls (PAR, token exchange) where
-// the public URL may not be reachable from inside Docker (hairpin NAT).
 export const PDS_URL = process.env.PDS_URL || 'https://pds.example'
-const PDS_INTERNAL_URL = process.env.PDS_INTERNAL_URL || PDS_URL
-export const PAR_ENDPOINT = `${PDS_INTERNAL_URL}/oauth/par`
 export const AUTH_ENDPOINT =
   process.env.AUTH_ENDPOINT || 'https://auth.pds.example/oauth/authorize'
-export const TOKEN_ENDPOINT = `${PDS_INTERNAL_URL}/oauth/token`
 
 export const PLC_DIRECTORY_URL =
   process.env.PLC_DIRECTORY_URL || 'https://plc.directory'

@@ -19,9 +19,8 @@ import {
   generateState,
   generateDpopKeyPair,
   createDpopProof,
-  PAR_ENDPOINT,
+  PDS_URL,
   AUTH_ENDPOINT,
-  TOKEN_ENDPOINT,
   resolveHandleToDid,
   resolveDidToPds,
   discoverOAuthEndpoints,
@@ -72,10 +71,10 @@ export async function GET(request: Request) {
       return NextResponse.redirect(new URL('/?error=invalid_handle', baseUrl))
     }
 
-    // Determine endpoints: dynamic for handle, hardcoded for email
-    let parEndpoint = PAR_ENDPOINT
+    // Determine endpoints: dynamic for handle, defaults for email
+    let parEndpoint = `${PDS_URL}/oauth/par`
     let authEndpoint = AUTH_ENDPOINT
-    let tokenEndpoint = TOKEN_ENDPOINT
+    let tokenEndpoint = `${PDS_URL}/oauth/token`
     let expectedDid: string | undefined
     let expectedPdsUrl: string | undefined
 
