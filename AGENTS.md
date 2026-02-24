@@ -1,4 +1,4 @@
-# AGENTS.md — ePDS
+# AGENTS.md — ePDS (extended Personal Data Server)
 
 AI agent instructions for the ePDS repository.
 

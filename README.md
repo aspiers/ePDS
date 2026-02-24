@@ -1,4 +1,4 @@
-# ePDS
+# ePDS — extended Personal Data Server
 
 ePDS lets your users sign in to [AT Protocol](https://atproto.com/) apps — like
 [Bluesky](https://bsky.app/) — using familiar login methods: **email OTP**, **Google**,

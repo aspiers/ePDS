@@ -1,4 +1,4 @@
-# Architecture
+# Architecture — ePDS (extended Personal Data Server)
 
 ## System Overview
 
