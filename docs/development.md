@@ -29,16 +29,26 @@ See [configuration.md](configuration.md) for a full reference of environment var
 ## Local Development
 
 ```bash
-./scripts/dev.sh
+pnpm dev
 ```
 
-This starts both services with `NODE_ENV=development`, which disables secure cookies
-(needed for `http://localhost`).
+This starts both services in watch mode with `tsx`. Set `NODE_ENV=development`
+in your `.env` to disable secure cookies (needed for `http://localhost`).
 
 | Service      | URL                   |
 | ------------ | --------------------- |
 | PDS Core     | http://localhost:3000 |
 | Auth Service | http://localhost:3001 |
+| Demo         | http://localhost:3002 |
+
+To run the demo frontend separately: `pnpm dev:demo`
+
+To start MailHog for local email testing:
+
+```bash
+docker compose --profile dev up -d mailhog
+# MailHog UI: http://localhost:8025
+```
 
 ## Running with Docker Locally
 
@@ -56,6 +66,7 @@ packages/
   shared/         # @certified-app/shared — DB, crypto, logger, types
   auth-service/   # @certified-app/auth-service — login UI, OTP, social login
   pds-core/       # @certified-app/pds-core — @atproto/pds wrapper
+  demo/           # @certified-app/demo — tutorial scaffold (Next.js)
 ```
 
 ## Testing

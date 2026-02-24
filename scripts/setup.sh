@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "=== Magic PDS Setup ==="
+echo "=== ePDS Setup ==="
 echo ""
 
 # Check prerequisites
@@ -26,7 +26,7 @@ sed_inplace() {
   if sed --version 2>/dev/null | grep -q GNU; then
     sed -i "$1" "$2"
   else
-    sed -i '''''' "$1" "$2"
+    sed -i '' "$1" "$2"
   fi
 }
 
@@ -35,29 +35,26 @@ if [ ! -f .env ]; then
   cp .env.example .env
 
   # Auto-generate all secrets
-  for var in PDS_JWT_SECRET PDS_DPOP_SECRET AUTH_SESSION_SECRET AUTH_CSRF_SECRET PDS_ADMIN_PASSWORD; do
+  for var in PDS_JWT_SECRET PDS_DPOP_SECRET AUTH_SESSION_SECRET AUTH_CSRF_SECRET PDS_ADMIN_PASSWORD MAGIC_CALLBACK_SECRET MAGIC_INTERNAL_SECRET; do
     secret=$(generate_secret)
     sed_inplace "s|^${var}=$|${var}=${secret}|" .env
     echo "  Generated $var"
   done
 
   echo ""
-  echo "IMPORTANT: You still need to configure:"
-  echo "  1. PDS_HOSTNAME       - Your domain (e.g., pds.example.com)"
-  echo "  2. AUTH_HOSTNAME      - Your auth subdomain (e.g., auth.pds.example.com)"
+  echo "You still need to configure:"
+  echo "  1. PDS_HOSTNAME         - Your domain (e.g. pds.example.com)"
+  echo "  2. AUTH_HOSTNAME        - Auth subdomain (e.g. auth.pds.example.com)"
   echo "  3. PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX - Generate with:"
-  echo "     openssl ecparam -name secp256k1 -genkey -noout | openssl ec -text -noout 2>/dev/null | grep priv -A 3 | tail -n +2 | tr -d '''[:space:]:'''"
-  echo "  4. SMTP settings      - For production email delivery"
-  echo "  5. MAGIC_LINK_BASE_URL - Update to match your AUTH_HOSTNAME"
-  echo "  6. SMTP_FROM          - Update to match your domain"
+  echo "     openssl ecparam -name secp256k1 -genkey -noout | openssl ec -text -noout 2>/dev/null | grep priv -A 3 | tail -n +2 | tr -d '[:space:]:'"
+  echo "  4. SMTP settings        - For email delivery"
+  echo "  5. MAGIC_LINK_BASE_URL  - Must match your AUTH_HOSTNAME"
+  echo "  6. SMTP_FROM            - Must match your domain"
 else
   echo ".env already exists, skipping generation."
 fi
 
 echo ""
-
-# Create data directory
-mkdir -p data
 
 # Install dependencies
 echo "Installing dependencies..."
@@ -72,5 +69,5 @@ echo "=== Setup complete ==="
 echo ""
 echo "Next steps:"
 echo "  1. Edit .env with your domain and secrets (see above)"
-echo "  2. Development: ./scripts/dev.sh"
-echo "  3. Production:  docker compose up -d"
+echo "  2. pnpm dev              - Start all services in dev mode"
+echo "  3. docker compose up -d  - Start with Docker"

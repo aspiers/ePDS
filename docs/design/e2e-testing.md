@@ -48,9 +48,9 @@ HTTP-only dev mode:
 These must be patched to respect a dev/test mode flag and use `http://` when
 appropriate.
 
-### Existing dev.sh pattern
+### Local dev pattern
 
-`scripts/dev.sh` already sets:
+For local development, `.env` should set:
 
 ```
 PDS_HOSTNAME=localhost
@@ -102,7 +102,7 @@ export function authBaseUrl(hostname: string): string {
 ```
 
 Replace all five hardcoded `https://` references with this helper. This also
-fixes the existing `scripts/dev.sh` local dev flow which has the same problem.
+fixes the local dev flow (`pnpm dev`) which has the same problem.
 
 ### Playwright setup
 
@@ -138,8 +138,8 @@ health checks, run tests, tear down. Requires Docker.
 The developer or CI script starts services before running tests. Tests just
 connect. Less complexity in the test harness.
 
-Recommendation: **Option B** for now. Add a `scripts/e2e.sh` that starts
-services and runs Playwright. Individual test files don't manage lifecycle.
+Recommendation: **Option B** for now. A small setup script or `pnpm` command
+starts services and runs Playwright. Individual test files don't manage lifecycle.
 
 ## Implementation steps
 
@@ -150,7 +150,7 @@ services and runs Playwright. Individual test files don't manage lifecycle.
    the ATProto loopback format
 3. **Add Playwright to monorepo** — `@playwright/test` dev dep, config file,
    `e2e/` directory
-4. **Write `scripts/e2e.sh`** — starts PDS + auth + demo + MailHog in dev
+4. **Add `pnpm test:e2e` script** — starts PDS + auth + demo + MailHog in dev
    mode, waits for health, runs Playwright, reports results
 5. **Write the login e2e test** — full Flow 1 (email login with OTP from
    MailHog)
@@ -160,7 +160,7 @@ services and runs Playwright. Individual test files don't manage lifecycle.
 
 - **Docker vs bare-metal for e2e?** Docker adds build time but is
   self-contained. Bare-metal (via `pnpm dev` + MailHog container) is faster
-  for iteration. The `scripts/e2e.sh` could support both modes.
+  for iteration. The `pnpm test:e2e` script could support both modes.
 - **CI integration** — GitHub Actions with Docker Compose, or bare-metal
   with MailHog service container? Defer until the local flow works.
 - **Test accounts** — the ePDS auto-provisions accounts on first login. No
