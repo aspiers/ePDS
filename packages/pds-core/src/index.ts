@@ -9,7 +9,7 @@
  * Flow:
  *   1. Client -> PAR -> PDS (stock)
  *   2. PDS redirects to auth.pds.example/oauth/authorize (via AS metadata)
- *   3. User enters email, receives magic link, verifies
+ *   3. User enters email, receives verification code, verifies
  *   4. Auth service redirects to pds.example/oauth/epds-callback
  *   5. ePDS callback: creates account if needed, issues code, redirects to client
  */

@@ -1,4 +1,4 @@
-export interface MagicLinkConfig {
+export interface EpdsLinkConfig {
   expiryMinutes: number
   maxAttemptsPerToken: number
 }
@@ -20,7 +20,7 @@ export interface AuthConfig {
   csrfSecret: string
   pdsHostname: string
   pdsPublicUrl: string
-  magicLink: MagicLinkConfig
+  verificationLink: EpdsLinkConfig
   email: EmailConfig
   dbLocation: string
 }

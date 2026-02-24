@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from 'express'
 import type { AuthServiceContext } from '../context.js'
 import { createLogger } from '@certified-app/shared'
-import { hashToken, generateMagicLinkToken } from '@certified-app/shared'
+import { hashToken, generateVerificationToken } from '@certified-app/shared'
 import { escapeHtml } from '@certified-app/shared'
 import { fromNodeHeaders } from 'better-auth/node'
 
@@ -131,7 +131,7 @@ export function createAccountSettingsRouter(
       }
 
       try {
-        const { token, tokenHash } = generateMagicLinkToken()
+        const { token, tokenHash } = generateVerificationToken()
         ctx.db.addBackupEmail(did, email, tokenHash)
 
         const baseUrl =

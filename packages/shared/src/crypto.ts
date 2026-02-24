@@ -3,10 +3,10 @@ import * as crypto from 'node:crypto'
 const TOKEN_BYTES = 32 // 256 bits of entropy
 
 /**
- * Generate a cryptographically secure magic link token.
+ * Generate a cryptographically secure verification token.
  * Returns the raw token (to send in email) and its SHA-256 hash (to store in DB).
  */
-export function generateMagicLinkToken(): { token: string; tokenHash: string } {
+export function generateVerificationToken(): { token: string; tokenHash: string } {
   const rawBytes = crypto.randomBytes(TOKEN_BYTES)
   const token = rawBytes.toString('base64url')
   const tokenHash = hashToken(token)

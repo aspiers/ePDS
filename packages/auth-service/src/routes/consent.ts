@@ -19,7 +19,7 @@ const AUTH_FLOW_COOKIE = 'epds_auth_flow'
  *    The complete.ts bridge passes flow_id when consent is needed so that
  *    we can maintain a single source of truth and avoid long URLs.
  * 2. Legacy mode: reads request_uri/email/client_id from query params directly
- *    (used by the old magic-link OTP path which is still active).
+ *    (used by the old OTP path which is still active).
  */
 export function createConsentRouter(ctx: AuthServiceContext): Router {
   const router = Router()

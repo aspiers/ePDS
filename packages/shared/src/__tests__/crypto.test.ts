@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  generateMagicLinkToken,
+  generateVerificationToken,
   hashToken,
   timingSafeEqual,
   generateCsrfToken,
@@ -10,23 +10,23 @@ import {
   type CallbackParams,
 } from '../crypto.js'
 
-describe('generateMagicLinkToken', () => {
+describe('generateVerificationToken', () => {
   it('returns a token and its hash', () => {
-    const { token, tokenHash } = generateMagicLinkToken()
+    const { token, tokenHash } = generateVerificationToken()
     expect(token).toBeDefined()
     expect(tokenHash).toBeDefined()
     expect(token).not.toBe(tokenHash)
   })
 
   it('generates unique tokens each time', () => {
-    const a = generateMagicLinkToken()
-    const b = generateMagicLinkToken()
+    const a = generateVerificationToken()
+    const b = generateVerificationToken()
     expect(a.token).not.toBe(b.token)
     expect(a.tokenHash).not.toBe(b.tokenHash)
   })
 
   it('hash matches when computed independently', () => {
-    const { token, tokenHash } = generateMagicLinkToken()
+    const { token, tokenHash } = generateVerificationToken()
     expect(hashToken(token)).toBe(tokenHash)
   })
 })

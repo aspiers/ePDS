@@ -31,9 +31,9 @@ afterEach(() => {
   } catch {}
 })
 
-describe('Magic Link Token Operations', () => {
+describe('Verification Token Operations', () => {
   it('creates and retrieves a token', () => {
-    db.createMagicLinkToken({
+    db.createVerificationToken({
       tokenHash: 'abc123',
       email: 'Test@Example.com',
       expiresAt: Date.now() + 60000,
@@ -43,7 +43,7 @@ describe('Magic Link Token Operations', () => {
       csrfToken: 'csrf-1',
     })
 
-    const row = db.getMagicLinkToken('abc123')
+    const row = db.getVerificationToken('abc123')
     expect(row).toBeDefined()
     expect(row!.email).toBe('test@example.com') // lowercased
     expect(row!.authRequestId).toBe('req-1')
@@ -52,7 +52,7 @@ describe('Magic Link Token Operations', () => {
   })
 
   it('marks token as used', () => {
-    db.createMagicLinkToken({
+    db.createVerificationToken({
       tokenHash: 'token1',
       email: 'a@b.com',
       expiresAt: Date.now() + 60000,
@@ -62,13 +62,13 @@ describe('Magic Link Token Operations', () => {
       csrfToken: 'csrf-1',
     })
 
-    db.markMagicLinkTokenUsed('token1')
-    const row = db.getMagicLinkToken('token1')
+    db.markVerificationTokenUsed('token1')
+    const row = db.getVerificationToken('token1')
     expect(row!.used).toBe(1)
   })
 
   it('increments token attempts', () => {
-    db.createMagicLinkToken({
+    db.createVerificationToken({
       tokenHash: 'token2',
       email: 'a@b.com',
       expiresAt: Date.now() + 60000,
@@ -84,7 +84,7 @@ describe('Magic Link Token Operations', () => {
   })
 
   it('looks up token by CSRF', () => {
-    db.createMagicLinkToken({
+    db.createVerificationToken({
       tokenHash: 'token3',
       email: 'poll@test.com',
       expiresAt: Date.now() + 60000,
@@ -94,14 +94,14 @@ describe('Magic Link Token Operations', () => {
       csrfToken: 'csrf-poll',
     })
 
-    const row = db.getMagicLinkTokenByCsrf('csrf-poll')
+    const row = db.getVerificationTokenByCsrf('csrf-poll')
     expect(row).toBeDefined()
     expect(row!.email).toBe('poll@test.com')
     expect(row!.clientId).toBe('https://app.example/client-metadata.json')
   })
 
   it('cleans up expired tokens', () => {
-    db.createMagicLinkToken({
+    db.createVerificationToken({
       tokenHash: 'expired',
       email: 'a@b.com',
       expiresAt: Date.now() - 1000, // already expired
@@ -113,7 +113,7 @@ describe('Magic Link Token Operations', () => {
 
     const cleaned = db.cleanupExpiredTokens()
     expect(cleaned).toBe(1)
-    expect(db.getMagicLinkToken('expired')).toBeUndefined()
+    expect(db.getVerificationToken('expired')).toBeUndefined()
   })
 })
 

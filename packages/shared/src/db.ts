@@ -2,7 +2,7 @@ import Database from 'better-sqlite3'
 import * as path from 'node:path'
 import * as fs from 'node:fs'
 
-export interface MagicLinkTokenRow {
+export interface VerificationTokenRow {
   tokenHash: string
   email: string
   createdAt: number
@@ -72,7 +72,7 @@ export class EpdsDb {
       // v1: Initial schema
       () => {
         this.db.exec(`
-          CREATE TABLE IF NOT EXISTS magic_link_token (
+          CREATE TABLE IF NOT EXISTS verification_token (
             token_hash       TEXT PRIMARY KEY,
             email            TEXT NOT NULL,
             created_at       INTEGER NOT NULL,
@@ -84,8 +84,8 @@ export class EpdsDb {
             csrf_token       TEXT NOT NULL,
             attempts         INTEGER NOT NULL DEFAULT 0
           );
-          CREATE INDEX IF NOT EXISTS idx_mlt_email ON magic_link_token(email);
-          CREATE INDEX IF NOT EXISTS idx_mlt_expires ON magic_link_token(expires_at);
+          CREATE INDEX IF NOT EXISTS idx_vt_email ON verification_token(email);
+          CREATE INDEX IF NOT EXISTS idx_vt_expires ON verification_token(expires_at);
 
           CREATE TABLE IF NOT EXISTS backup_email (
             id                      INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -122,7 +122,7 @@ export class EpdsDb {
 
       // v2: Add code_hash column for OTP support
       () => {
-        this.db.exec('ALTER TABLE magic_link_token ADD COLUMN code_hash TEXT')
+        this.db.exec('ALTER TABLE verification_token ADD COLUMN code_hash TEXT')
       },
 
       // v3: Per-client login tracking for welcome vs sign-in emails
@@ -183,9 +183,9 @@ export class EpdsDb {
     }
   }
 
-  // ── Magic Link Token Operations ──
+  // ── Verification Token Operations ──
 
-  createMagicLinkToken(data: {
+  createVerificationToken(data: {
     tokenHash: string
     email: string
     expiresAt: number
@@ -199,7 +199,7 @@ export class EpdsDb {
     this.db
       .prepare(
         `
-      INSERT INTO magic_link_token (token_hash, email, created_at, expires_at, auth_request_id, client_id, device_info, csrf_token, code_hash)
+      INSERT INTO verification_token (token_hash, email, created_at, expires_at, auth_request_id, client_id, device_info, csrf_token, code_hash)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
       )
@@ -216,7 +216,7 @@ export class EpdsDb {
       )
   }
 
-  getMagicLinkToken(tokenHash: string): MagicLinkTokenRow | undefined {
+  getVerificationToken(tokenHash: string): VerificationTokenRow | undefined {
     return this.db
       .prepare(
         `
@@ -224,33 +224,33 @@ export class EpdsDb {
         token_hash as tokenHash, email, created_at as createdAt,
         expires_at as expiresAt, used, auth_request_id as authRequestId,
         client_id as clientId, device_info as deviceInfo, csrf_token as csrfToken, code_hash as codeHash, attempts
-      FROM magic_link_token WHERE token_hash = ?
+      FROM verification_token WHERE token_hash = ?
     `,
       )
-      .get(tokenHash) as MagicLinkTokenRow | undefined
+      .get(tokenHash) as VerificationTokenRow | undefined
   }
 
-  markMagicLinkTokenUsed(tokenHash: string): void {
+  markVerificationTokenUsed(tokenHash: string): void {
     this.db
-      .prepare(`UPDATE magic_link_token SET used = 1 WHERE token_hash = ?`)
+      .prepare(`UPDATE verification_token SET used = 1 WHERE token_hash = ?`)
       .run(tokenHash)
   }
 
   incrementTokenAttempts(tokenHash: string): number {
     this.db
       .prepare(
-        `UPDATE magic_link_token SET attempts = attempts + 1 WHERE token_hash = ?`,
+        `UPDATE verification_token SET attempts = attempts + 1 WHERE token_hash = ?`,
       )
       .run(tokenHash)
     const row = this.db
-      .prepare(`SELECT attempts FROM magic_link_token WHERE token_hash = ?`)
+      .prepare(`SELECT attempts FROM verification_token WHERE token_hash = ?`)
       .get(tokenHash) as { attempts: number } | undefined
     return row?.attempts ?? 0
   }
 
   cleanupExpiredTokens(): number {
     const result = this.db
-      .prepare(`DELETE FROM magic_link_token WHERE expires_at < ?`)
+      .prepare(`DELETE FROM verification_token WHERE expires_at < ?`)
       .run(Date.now())
     return result.changes
   }
@@ -370,9 +370,9 @@ export class EpdsDb {
     return result.changes
   }
 
-  // ── Magic Link Token by CSRF (for polling) ──
+  // ── Verification Token by CSRF (for polling) ──
 
-  getMagicLinkTokenByCsrf(csrfToken: string): MagicLinkTokenRow | undefined {
+  getVerificationTokenByCsrf(csrfToken: string): VerificationTokenRow | undefined {
     return this.db
       .prepare(
         `
@@ -380,14 +380,14 @@ export class EpdsDb {
         token_hash as tokenHash, email, created_at as createdAt,
         expires_at as expiresAt, used, auth_request_id as authRequestId,
         client_id as clientId, device_info as deviceInfo, csrf_token as csrfToken, code_hash as codeHash, attempts
-      FROM magic_link_token WHERE csrf_token = ? ORDER BY created_at DESC LIMIT 1
+      FROM verification_token WHERE csrf_token = ? ORDER BY created_at DESC LIMIT 1
     `,
       )
-      .get(csrfToken) as MagicLinkTokenRow | undefined
+      .get(csrfToken) as VerificationTokenRow | undefined
   }
 
   // Delete all data for a DID (account deletion / GDPR).
-  // Note: email-specific cleanup (magic_link_token, email_rate_limit) is best-effort
+  // Note: email-specific cleanup (verification_token, email_rate_limit) is best-effort
   // since the primary email is now owned by the PDS (account.sqlite), not by us.
   deleteAccountData(did: string): void {
     this.db.prepare('DELETE FROM backup_email WHERE did = ?').run(did)
@@ -460,7 +460,7 @@ export class EpdsDb {
     const pendingTokens = (
       this.db
         .prepare(
-          'SELECT COUNT(*) as c FROM magic_link_token WHERE used = 0 AND expires_at > ?',
+          'SELECT COUNT(*) as c FROM verification_token WHERE used = 0 AND expires_at > ?',
         )
         .get(now) as { c: number }
     ).c

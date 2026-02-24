@@ -1,12 +1,12 @@
 export { EpdsDb } from './db.js'
 export type {
-  MagicLinkTokenRow,
+  VerificationTokenRow,
   BackupEmailRow,
   EmailRateLimitRow,
   AuthFlowRow,
 } from './db.js'
 export {
-  generateMagicLinkToken,
+  generateVerificationToken,
   hashToken,
   timingSafeEqual,
   generateCsrfToken,
@@ -17,7 +17,7 @@ export {
 } from './crypto.js'
 export type { CallbackParams } from './crypto.js'
 export type {
-  MagicLinkConfig,
+  EpdsLinkConfig,
   EmailConfig,
   AuthConfig,
   RateLimitConfig,
