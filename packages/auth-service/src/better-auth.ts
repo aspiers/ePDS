@@ -74,6 +74,7 @@ export async function runBetterAuthMigrations(
 ): Promise<void> {
   const betterAuthDb = new Database(dbLocation)
   const tempAuth = betterAuth({
+    secret: process.env.AUTH_SESSION_SECRET,
     database: betterAuthDb,
     baseURL: `https://${authHostname}`,
     basePath: '/api/auth',
@@ -110,7 +111,7 @@ export async function runBetterAuthMigrations(
 export function createBetterAuth(emailSender: EmailSender, db: EpdsDb): any {
   const dbLocation = process.env.DB_LOCATION ?? './data/epds.sqlite'
   const authHostname = process.env.AUTH_HOSTNAME ?? 'auth.localhost'
-  const pdsName = process.env.SMTP_FROM_NAME ?? 'Magic PDS'
+  const pdsName = process.env.SMTP_FROM_NAME ?? 'ePDS'
   const pdsDomain = process.env.PDS_HOSTNAME ?? 'localhost'
 
   // Session lifetime from env (in seconds, default 7 days / 1 day update age)
@@ -128,6 +129,9 @@ export function createBetterAuth(emailSender: EmailSender, db: EpdsDb): any {
   const betterAuthDb = new Database(dbLocation)
 
   return betterAuth({
+    // Use AUTH_SESSION_SECRET so better-auth doesn't fall back to its
+    // default secret (which throws in production).
+    secret: process.env.AUTH_SESSION_SECRET,
     database: betterAuthDb,
     baseURL: `https://${authHostname}`,
     basePath: '/api/auth',
