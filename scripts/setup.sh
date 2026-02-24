@@ -54,6 +54,7 @@ generate_secrets_in_file() {
 inject_shared_vars() {
   local target="$1"
   for var in PDS_HOSTNAME PDS_PUBLIC_URL EPDS_CALLBACK_SECRET EPDS_INTERNAL_SECRET PDS_ADMIN_PASSWORD \
+             PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX \
              SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASS SMTP_FROM SMTP_FROM_NAME PDS_EMAIL_FROM_ADDRESS; do
     if ! grep -qE "^${var}=" "$target" 2>/dev/null; then
       continue
