@@ -24,12 +24,13 @@ read_env_var() {
   grep -E "^${var}=" "$file" 2>/dev/null | head -1 | cut -d'=' -f2-
 }
 
-# Set a var in a file. Replaces the line if the var exists (commented or not),
-# otherwise appends.
+# Set a var in a file. If an uncommented line exists, replace it.
+# If only commented lines exist, leave them alone and append.
+# If the var doesn't exist at all, append it.
 set_env_var() {
   local var="$1" val="$2" file="$3"
-  if grep -qE "^#?\s*${var}=" "$file" 2>/dev/null; then
-    sed_inplace "s|^#\?\s*${var}=.*|${var}=${val}|" "$file"
+  if grep -qE "^${var}=" "$file" 2>/dev/null; then
+    sed_inplace "s|^${var}=.*|${var}=${val}|" "$file"
   else
     echo "${var}=${val}" >> "$file"
   fi
@@ -48,10 +49,15 @@ generate_secrets_in_file() {
 }
 
 # Copy shared vars from the top-level .env into a per-package .env.
+# Only sets vars that already have an uncommented line in the target file,
+# so packages don't end up with vars they don't use.
 inject_shared_vars() {
   local target="$1"
   for var in PDS_HOSTNAME PDS_PUBLIC_URL EPDS_CALLBACK_SECRET EPDS_INTERNAL_SECRET PDS_ADMIN_PASSWORD \
-             SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASS PDS_EMAIL_SMTP_URL; do
+             SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASS; do
+    if ! grep -qE "^${var}=" "$target" 2>/dev/null; then
+      continue
+    fi
     local val
     val=$(read_env_var "$var" .env)
     if [ -n "$val" ]; then
@@ -80,6 +86,13 @@ inject_derived_vars() {
   fi
   if grep -qE "^PDS_EMAIL_FROM_ADDRESS=" "$target" 2>/dev/null && [ -n "$pds_hostname" ]; then
     set_env_var PDS_EMAIL_FROM_ADDRESS "noreply@${pds_hostname}" "$target"
+  fi
+
+  # PDS_EMAIL_SMTP_URL is pds-core-specific, constructed from SMTP components
+  local smtp_url
+  smtp_url=$(read_env_var PDS_EMAIL_SMTP_URL .env)
+  if grep -qE "^PDS_EMAIL_SMTP_URL=" "$target" 2>/dev/null && [ -n "$smtp_url" ]; then
+    set_env_var PDS_EMAIL_SMTP_URL "$smtp_url" "$target"
   fi
 }
 
