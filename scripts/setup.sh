@@ -91,7 +91,6 @@ inject_derived_vars() {
 # ── Interactive prompts ──
 
 # Ask for the PDS hostname and derive all other hostnames/URLs from it.
-# Runs only when creating a new .env (not on re-runs).
 prompt_hostname() {
   echo "Configure your ePDS instance"
   echo "──────────────────────────────"
@@ -104,8 +103,11 @@ prompt_hostname() {
   echo "  localhost                 (local dev without TLS)"
   echo ""
 
+  local existing_hostname
+  existing_hostname=$(read_env_var PDS_HOSTNAME .env)
+
   local pds_hostname
-  read -rep "PDS hostname: " -i "localhost" pds_hostname
+  read -rep "PDS hostname: " -i "${existing_hostname:-localhost}" pds_hostname
 
   local auth_hostname
   if [ "$pds_hostname" = "localhost" ]; then
@@ -149,19 +151,28 @@ prompt_smtp() {
   echo "email verification. Press Enter to accept defaults (local Mailpit)."
   echo ""
 
+  # Read existing values for defaults
+  local existing_host existing_port existing_user existing_pass existing_from existing_from_name
+  existing_host=$(read_env_var SMTP_HOST .env)
+  existing_port=$(read_env_var SMTP_PORT .env)
+  existing_user=$(read_env_var SMTP_USER .env)
+  existing_pass=$(read_env_var SMTP_PASS .env)
+  existing_from=$(read_env_var SMTP_FROM .env)
+  existing_from_name=$(read_env_var SMTP_FROM_NAME .env)
+
   local smtp_host smtp_port smtp_user smtp_pass
 
-  read -rep "SMTP host: " -i "localhost" smtp_host
+  read -rep "SMTP host: " -i "${existing_host:-localhost}" smtp_host
 
-  local default_port="587"
-  if [ "$smtp_host" = "localhost" ]; then
+  local default_port="${existing_port:-587}"
+  if [ -z "$existing_port" ] && [ "$smtp_host" = "localhost" ]; then
     default_port="1025"
   fi
   read -rep "SMTP port: " -i "$default_port" smtp_port
 
-  read -rep "SMTP username (blank for none): " smtp_user
+  read -rep "SMTP username (blank for none): " -i "$existing_user" smtp_user
   if [ -n "$smtp_user" ]; then
-    read -rsp "SMTP password: " smtp_pass
+    read -rsp "SMTP password: " -i "$existing_pass" smtp_pass
     echo ""
   else
     smtp_pass=""
@@ -170,11 +181,11 @@ prompt_smtp() {
   # From address and display name
   local pds_hostname smtp_from smtp_from_name
   pds_hostname=$(read_env_var PDS_HOSTNAME .env)
-  local default_from="noreply@${pds_hostname}"
+  local default_from="${existing_from:-noreply@${pds_hostname}}"
 
   read -rep "From address: " -i "$default_from" smtp_from
 
-  read -rep "From name: " -i "ePDS" smtp_from_name
+  read -rep "From name: " -i "${existing_from_name:-ePDS}" smtp_from_name
 
   set_env_var SMTP_HOST "$smtp_host" .env
   set_env_var SMTP_PORT "$smtp_port" .env
@@ -231,28 +242,38 @@ prompt_demo() {
     proto="http"
   fi
 
+  # Compute defaults, then override with existing values if present
   local default_demo_url="http://127.0.0.1:3002"
+  local default_pds_url="$pds_public_url"
   local default_auth_endpoint="${proto}://${auth_hostname}/oauth/authorize"
   if [ "$auth_hostname" = "localhost" ]; then
     default_auth_endpoint="http://localhost:3001/oauth/authorize"
   fi
 
-  local demo_url
-  read -rep "Demo public URL: " -i "$default_demo_url" demo_url
+  local existing_demo_url existing_pds_url existing_auth_endpoint
+  existing_demo_url=$(read_env_var PUBLIC_URL packages/demo/.env)
+  existing_pds_url=$(read_env_var PDS_URL packages/demo/.env)
+  existing_auth_endpoint=$(read_env_var AUTH_ENDPOINT packages/demo/.env)
+
+  local demo_url demo_pds_url demo_auth_endpoint
+  read -rep "Demo public URL: " -i "${existing_demo_url:-$default_demo_url}" demo_url
+  read -rep "PDS URL: " -i "${existing_pds_url:-$default_pds_url}" demo_pds_url
+  read -rep "Auth endpoint: " -i "${existing_auth_endpoint:-$default_auth_endpoint}" demo_auth_endpoint
 
   set_env_var PUBLIC_URL "$demo_url" packages/demo/.env
-  set_env_var PDS_URL "$pds_public_url" packages/demo/.env
-  set_env_var AUTH_ENDPOINT "$default_auth_endpoint" packages/demo/.env
+  set_env_var PDS_URL "$demo_pds_url" packages/demo/.env
+  set_env_var AUTH_ENDPOINT "$demo_auth_endpoint" packages/demo/.env
 
   echo ""
   echo "  Set PUBLIC_URL=${demo_url}"
-  echo "  Set PDS_URL=${pds_public_url}"
-  echo "  Set AUTH_ENDPOINT=${default_auth_endpoint}"
+  echo "  Set PDS_URL=${demo_pds_url}"
+  echo "  Set AUTH_ENDPOINT=${demo_auth_endpoint}"
 }
 
 # ── Setup stages ──
 
-# Warn if any .env files already exist — setup will skip those files.
+# Warn if any .env files already exist — secrets won't be regenerated,
+# but prompts will run with existing values pre-filled for editing.
 warn_existing_env_files() {
   local existing=()
   for f in .env packages/pds-core/.env packages/auth-service/.env packages/demo/.env; do
@@ -265,17 +286,18 @@ warn_existing_env_files() {
     return
   fi
 
-  echo "WARNING: The following .env files already exist and will not be overwritten:"
+  echo "NOTE: The following .env files already exist:"
   for f in "${existing[@]}"; do
     echo "  $f"
   done
   echo ""
-  echo "Delete them first if you want a fresh setup."
+  echo "Secrets will not be regenerated. Prompts will show current values"
+  echo "for editing. Delete the files first if you want a completely fresh setup."
   echo ""
 
   local reply
-  read -rp "Continue anyway? [y/N] " reply
-  if [[ ! "$reply" =~ ^[Yy] ]]; then
+  read -rp "Continue? [Y/n] " reply
+  if [[ "$reply" =~ ^[Nn] ]]; then
     echo "Aborted."
     exit 0
   fi
@@ -295,26 +317,27 @@ check_prerequisites() {
 }
 
 setup_toplevel_env() {
-  if [ -f .env ]; then
-    echo ".env already exists, skipping generation."
-    return
+  if [ ! -f .env ]; then
+    echo "Creating .env from .env.example..."
+    cp .env.example .env
+
+    generate_secrets_in_file .env \
+      PDS_JWT_SECRET PDS_DPOP_SECRET AUTH_SESSION_SECRET AUTH_CSRF_SECRET \
+      PDS_ADMIN_PASSWORD EPDS_CALLBACK_SECRET EPDS_INTERNAL_SECRET
   fi
-
-  echo "Creating .env from .env.example..."
-  cp .env.example .env
-
-  generate_secrets_in_file .env \
-    PDS_JWT_SECRET PDS_DPOP_SECRET AUTH_SESSION_SECRET AUTH_CSRF_SECRET \
-    PDS_ADMIN_PASSWORD EPDS_CALLBACK_SECRET EPDS_INTERNAL_SECRET
 
   echo ""
   prompt_hostname
   prompt_smtp
 
   echo ""
-  echo "You still need to configure:"
-  echo "  PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX - Generate with:"
-  echo "    openssl ecparam -name secp256k1 -genkey -noout | openssl ec -text -noout 2>/dev/null | grep priv -A 3 | tail -n +2 | tr -d '[:space:]:'"
+  local rotation_key
+  rotation_key=$(read_env_var PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX .env)
+  if [ -z "$rotation_key" ]; then
+    echo "You still need to configure:"
+    echo "  PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX - Generate with:"
+    echo "    openssl ecparam -name secp256k1 -genkey -noout | openssl ec -text -noout 2>/dev/null | grep priv -A 3 | tail -n +2 | tr -d '[:space:]:'"
+  fi
 }
 
 # Create a per-package .env from its .env.example, inject shared/derived vars,
@@ -324,19 +347,16 @@ setup_package_env() {
   local pkg_dir="$1"; shift
   local env_file="${pkg_dir}/.env"
 
-  if [ -f "$env_file" ]; then
-    echo "${env_file} already exists, skipping."
-    return
+  if [ ! -f "$env_file" ]; then
+    echo "Creating ${env_file}..."
+    cp "${pkg_dir}/.env.example" "$env_file"
+    if [ $# -gt 0 ]; then
+      generate_secrets_in_file "$env_file" "$@"
+    fi
   fi
 
-  echo "Creating ${env_file}..."
-  cp "${pkg_dir}/.env.example" "$env_file"
   inject_shared_vars "$env_file"
   inject_derived_vars "$env_file"
-
-  if [ $# -gt 0 ]; then
-    generate_secrets_in_file "$env_file" "$@"
-  fi
 }
 
 setup_package_envs() {
@@ -357,10 +377,8 @@ setup_package_envs() {
     secret=$(generate_secret)
     sed_inplace "s|^# SESSION_SECRET=.*|SESSION_SECRET=${secret}|" packages/demo/.env
     echo "  Generated SESSION_SECRET"
-    prompt_demo
-  else
-    echo "packages/demo/.env already exists, skipping."
   fi
+  prompt_demo
 
   echo ""
   echo "See per-package .env.example files for full documentation:"
