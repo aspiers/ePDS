@@ -105,11 +105,7 @@ prompt_hostname() {
   echo ""
 
   local pds_hostname
-  read -rp "PDS hostname: " pds_hostname
-  if [ -z "$pds_hostname" ]; then
-    echo "No hostname entered, using 'localhost'."
-    pds_hostname="localhost"
-  fi
+  read -rep "PDS hostname: " -i "localhost" pds_hostname
 
   local auth_hostname
   if [ "$pds_hostname" = "localhost" ]; then
@@ -155,17 +151,15 @@ prompt_smtp() {
 
   local smtp_host smtp_port smtp_user smtp_pass
 
-  read -rp "SMTP host [localhost]: " smtp_host
-  smtp_host="${smtp_host:-localhost}"
+  read -rep "SMTP host: " -i "localhost" smtp_host
 
   local default_port="587"
   if [ "$smtp_host" = "localhost" ]; then
     default_port="1025"
   fi
-  read -rp "SMTP port [${default_port}]: " smtp_port
-  smtp_port="${smtp_port:-$default_port}"
+  read -rep "SMTP port: " -i "$default_port" smtp_port
 
-  read -rp "SMTP username (blank for none): " smtp_user
+  read -rep "SMTP username (blank for none): " smtp_user
   if [ -n "$smtp_user" ]; then
     read -rsp "SMTP password: " smtp_pass
     echo ""
@@ -178,11 +172,9 @@ prompt_smtp() {
   pds_hostname=$(read_env_var PDS_HOSTNAME .env)
   local default_from="noreply@${pds_hostname}"
 
-  read -rp "From address [${default_from}]: " smtp_from
-  smtp_from="${smtp_from:-$default_from}"
+  read -rep "From address: " -i "$default_from" smtp_from
 
-  read -rp "From name [ePDS]: " smtp_from_name
-  smtp_from_name="${smtp_from_name:-ePDS}"
+  read -rep "From name: " -i "ePDS" smtp_from_name
 
   set_env_var SMTP_HOST "$smtp_host" .env
   set_env_var SMTP_PORT "$smtp_port" .env
@@ -246,8 +238,7 @@ prompt_demo() {
   fi
 
   local demo_url
-  read -rp "Demo public URL [${default_demo_url}]: " demo_url
-  demo_url="${demo_url:-$default_demo_url}"
+  read -rep "Demo public URL: " -i "$default_demo_url" demo_url
 
   set_env_var PUBLIC_URL "$demo_url" packages/demo/.env
   set_env_var PDS_URL "$pds_public_url" packages/demo/.env
