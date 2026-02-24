@@ -1,20 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "=== ePDS Setup ==="
-echo ""
-
-# Check prerequisites
-for cmd in pnpm openssl node; do
-  if ! command -v "$cmd" &>/dev/null; then
-    echo "ERROR: $cmd is required but not installed."
-    exit 1
-  fi
-done
-
-echo "Node version: $(node --version)"
-echo "pnpm version: $(pnpm --version)"
-echo ""
+# ── Utility functions ──
 
 # Generate a hex secret
 generate_secret() {
@@ -48,6 +35,18 @@ set_env_var() {
   fi
 }
 
+# Generate random values for vars that are currently set to bare "=".
+# Usage: generate_secrets_in_file <file> VAR1 VAR2 ...
+generate_secrets_in_file() {
+  local file="$1"; shift
+  for var in "$@"; do
+    local secret
+    secret=$(generate_secret)
+    sed_inplace "s|^${var}=$|${var}=${secret}|" "$file"
+    echo "  Generated $var"
+  done
+}
+
 # Copy shared vars from the top-level .env into a per-package .env.
 inject_shared_vars() {
   local target="$1"
@@ -61,6 +60,7 @@ inject_shared_vars() {
 }
 
 # Inject derived vars that depend on the hostname into a per-package .env.
+# Only sets vars that already exist in the target file.
 inject_derived_vars() {
   local target="$1"
 
@@ -68,7 +68,6 @@ inject_derived_vars() {
   auth_hostname=$(read_env_var AUTH_HOSTNAME .env)
   pds_hostname=$(read_env_var PDS_HOSTNAME .env)
 
-  # auth-service derived vars
   if grep -qE "^AUTH_HOSTNAME=" "$target" 2>/dev/null && [ -n "$auth_hostname" ]; then
     set_env_var AUTH_HOSTNAME "$auth_hostname" "$target"
   fi
@@ -78,18 +77,15 @@ inject_derived_vars() {
   if grep -qE "^SMTP_FROM=" "$target" 2>/dev/null && [ -n "$pds_hostname" ]; then
     set_env_var SMTP_FROM "noreply@${pds_hostname}" "$target"
   fi
-
-  # pds-core derived vars
   if grep -qE "^PDS_EMAIL_FROM_ADDRESS=" "$target" 2>/dev/null && [ -n "$pds_hostname" ]; then
     set_env_var PDS_EMAIL_FROM_ADDRESS "noreply@${pds_hostname}" "$target"
   fi
 }
 
 # ── Interactive prompts ──
-#
+
 # Ask for the PDS hostname and derive all other hostnames/URLs from it.
 # Runs only when creating a new .env (not on re-runs).
-
 prompt_hostname() {
   echo "Configure your ePDS instance"
   echo "──────────────────────────────"
@@ -109,7 +105,6 @@ prompt_hostname() {
     pds_hostname="localhost"
   fi
 
-  # Derive auth hostname
   local auth_hostname
   if [ "$pds_hostname" = "localhost" ]; then
     auth_hostname="localhost"
@@ -121,19 +116,16 @@ prompt_hostname() {
   echo "Auth hostname will be: ${auth_hostname}"
   echo ""
 
-  # Derive protocol (http for localhost, https for everything else)
   local proto="https"
   if [ "$pds_hostname" = "localhost" ] || [[ "$pds_hostname" == *.localhost ]]; then
     proto="http"
   fi
 
   local pds_public_url="${proto}://${pds_hostname}"
-  # Append port for localhost
   if [ "$pds_hostname" = "localhost" ]; then
     pds_public_url="http://localhost:3000"
   fi
 
-  # Set in top-level .env
   set_env_var PDS_HOSTNAME "$pds_hostname" .env
   set_env_var PDS_PUBLIC_URL "$pds_public_url" .env
   set_env_var AUTH_HOSTNAME "$auth_hostname" .env
@@ -168,7 +160,6 @@ prompt_demo() {
 
   local default_demo_url="http://127.0.0.1:3002"
   local default_auth_endpoint="${proto}://${auth_hostname}/oauth/authorize"
-  # For localhost, auth endpoint uses direct port
   if [ "$auth_hostname" = "localhost" ]; then
     default_auth_endpoint="http://localhost:3001/oauth/authorize"
   fi
@@ -187,18 +178,32 @@ prompt_demo() {
   echo "  Set AUTH_ENDPOINT=${default_auth_endpoint}"
 }
 
-# ── Top-level .env ──
+# ── Setup stages ──
 
-if [ ! -f .env ]; then
+check_prerequisites() {
+  for cmd in pnpm openssl node; do
+    if ! command -v "$cmd" &>/dev/null; then
+      echo "ERROR: $cmd is required but not installed."
+      exit 1
+    fi
+  done
+  echo "Node version: $(node --version)"
+  echo "pnpm version: $(pnpm --version)"
+  echo ""
+}
+
+setup_toplevel_env() {
+  if [ -f .env ]; then
+    echo ".env already exists, skipping generation."
+    return
+  fi
+
   echo "Creating .env from .env.example..."
   cp .env.example .env
 
-  # Auto-generate all secrets
-  for var in PDS_JWT_SECRET PDS_DPOP_SECRET AUTH_SESSION_SECRET AUTH_CSRF_SECRET PDS_ADMIN_PASSWORD EPDS_CALLBACK_SECRET EPDS_INTERNAL_SECRET; do
-    secret=$(generate_secret)
-    sed_inplace "s|^${var}=$|${var}=${secret}|" .env
-    echo "  Generated $var"
-  done
+  generate_secrets_in_file .env \
+    PDS_JWT_SECRET PDS_DPOP_SECRET AUTH_SESSION_SECRET AUTH_CSRF_SECRET \
+    PDS_ADMIN_PASSWORD EPDS_CALLBACK_SECRET EPDS_INTERNAL_SECRET
 
   echo ""
   prompt_hostname
@@ -208,84 +213,90 @@ if [ ! -f .env ]; then
   echo "  1. PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX - Generate with:"
   echo "     openssl ecparam -name secp256k1 -genkey -noout | openssl ec -text -noout 2>/dev/null | grep priv -A 3 | tail -n +2 | tr -d '[:space:]:'"
   echo "  2. SMTP settings        - For email delivery (see .env)"
-else
-  echo ".env already exists, skipping generation."
-fi
+}
 
-# ── Per-package .env files ──
-#
-# Each package has its own .env.example. The per-package .env files are used by:
-#   - pnpm dev:demo (Next.js loads packages/demo/.env automatically)
-#   - Railway (each service reads only its own vars — copy-paste into raw editor)
-# For docker-compose and pnpm dev (core + auth), the top-level .env is sufficient.
+# Create a per-package .env from its .env.example, inject shared/derived vars,
+# and generate any package-specific secrets.
+# Usage: setup_package_env <pkg_dir> [SECRET_VAR ...]
+setup_package_env() {
+  local pkg_dir="$1"; shift
+  local env_file="${pkg_dir}/.env"
 
-echo ""
+  if [ -f "$env_file" ]; then
+    echo "${env_file} already exists, skipping."
+    return
+  fi
 
-# pds-core
-if [ ! -f packages/pds-core/.env ]; then
-  echo "Creating packages/pds-core/.env..."
-  cp packages/pds-core/.env.example packages/pds-core/.env
-  inject_shared_vars packages/pds-core/.env
-  inject_derived_vars packages/pds-core/.env
-  for var in PDS_JWT_SECRET PDS_DPOP_SECRET; do
+  echo "Creating ${env_file}..."
+  cp "${pkg_dir}/.env.example" "$env_file"
+  inject_shared_vars "$env_file"
+  inject_derived_vars "$env_file"
+
+  if [ $# -gt 0 ]; then
+    generate_secrets_in_file "$env_file" "$@"
+  fi
+}
+
+setup_package_envs() {
+  # Each package has its own .env.example. Per-package .env files are used by:
+  #   - pnpm dev:demo (Next.js loads packages/demo/.env automatically)
+  #   - Railway (each service reads only its own vars — copy-paste into raw editor)
+  # For docker-compose and pnpm dev (core + auth), the top-level .env is sufficient.
+
+  echo ""
+  setup_package_env packages/pds-core PDS_JWT_SECRET PDS_DPOP_SECRET
+  setup_package_env packages/auth-service AUTH_SESSION_SECRET AUTH_CSRF_SECRET
+
+  # Demo needs special handling: SESSION_SECRET line is commented out by default
+  if [ ! -f packages/demo/.env ]; then
+    echo "Creating packages/demo/.env..."
+    cp packages/demo/.env.example packages/demo/.env
+    local secret
     secret=$(generate_secret)
-    sed_inplace "s|^${var}=$|${var}=${secret}|" packages/pds-core/.env
-    echo "  Generated $var"
-  done
-else
-  echo "packages/pds-core/.env already exists, skipping."
-fi
+    sed_inplace "s|^# SESSION_SECRET=.*|SESSION_SECRET=${secret}|" packages/demo/.env
+    echo "  Generated SESSION_SECRET"
+    prompt_demo
+  else
+    echo "packages/demo/.env already exists, skipping."
+  fi
 
-# auth-service
-if [ ! -f packages/auth-service/.env ]; then
-  echo "Creating packages/auth-service/.env..."
-  cp packages/auth-service/.env.example packages/auth-service/.env
-  inject_shared_vars packages/auth-service/.env
-  inject_derived_vars packages/auth-service/.env
-  for var in AUTH_SESSION_SECRET AUTH_CSRF_SECRET; do
-    secret=$(generate_secret)
-    sed_inplace "s|^${var}=$|${var}=${secret}|" packages/auth-service/.env
-    echo "  Generated $var"
-  done
-else
-  echo "packages/auth-service/.env already exists, skipping."
-fi
+  echo ""
+  echo "See per-package .env.example files for full documentation:"
+  echo "  packages/pds-core/.env.example"
+  echo "  packages/auth-service/.env.example"
+  echo "  packages/demo/.env.example"
+}
 
-# demo
-if [ ! -f packages/demo/.env ]; then
-  echo "Creating packages/demo/.env..."
-  cp packages/demo/.env.example packages/demo/.env
-  # Demo has its own SESSION_SECRET, not shared with other services
-  secret=$(generate_secret)
-  sed_inplace "s|^# SESSION_SECRET=.*|SESSION_SECRET=${secret}|" packages/demo/.env
-  echo "  Generated SESSION_SECRET"
+install_and_build() {
+  echo ""
+  echo "Installing dependencies..."
+  pnpm install
 
-  prompt_demo
-else
-  echo "packages/demo/.env already exists, skipping."
-fi
+  echo "Building..."
+  pnpm build
+}
 
-echo ""
-echo "See per-package .env.example files for full documentation:"
-echo "  packages/pds-core/.env.example"
-echo "  packages/auth-service/.env.example"
-echo "  packages/demo/.env.example"
+print_next_steps() {
+  echo ""
+  echo "=== Setup complete ==="
+  echo ""
+  echo "Next steps:"
+  echo "  1. Review .env files and adjust if needed"
+  echo "  2. pnpm dev              - Start core + auth in dev mode"
+  echo "  3. pnpm dev:demo         - Start the demo app (separate terminal)"
+  echo "  4. docker compose up -d  - Or start with Docker instead"
+}
 
-echo ""
+# ── Main ──
 
-# Install dependencies
-echo "Installing dependencies..."
-pnpm install
+main() {
+  echo "=== ePDS Setup ==="
+  echo ""
+  check_prerequisites
+  setup_toplevel_env
+  setup_package_envs
+  install_and_build
+  print_next_steps
+}
 
-# Build
-echo "Building..."
-pnpm build
-
-echo ""
-echo "=== Setup complete ==="
-echo ""
-echo "Next steps:"
-echo "  1. Review .env files and adjust if needed"
-echo "  2. pnpm dev              - Start core + auth in dev mode"
-echo "  3. pnpm dev:demo         - Start the demo app (separate terminal)"
-echo "  4. docker compose up -d  - Or start with Docker instead"
+main "$@"
