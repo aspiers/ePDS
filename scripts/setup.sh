@@ -50,7 +50,8 @@ generate_secrets_in_file() {
 # Copy shared vars from the top-level .env into a per-package .env.
 inject_shared_vars() {
   local target="$1"
-  for var in PDS_HOSTNAME PDS_PUBLIC_URL EPDS_CALLBACK_SECRET EPDS_INTERNAL_SECRET PDS_ADMIN_PASSWORD; do
+  for var in PDS_HOSTNAME PDS_PUBLIC_URL EPDS_CALLBACK_SECRET EPDS_INTERNAL_SECRET PDS_ADMIN_PASSWORD \
+             SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASS PDS_EMAIL_SMTP_URL; do
     local val
     val=$(read_env_var "$var" .env)
     if [ -n "$val" ]; then
@@ -141,6 +142,69 @@ prompt_hostname() {
   echo "  Set PDS_EMAIL_FROM_ADDRESS=noreply@${pds_hostname}"
 }
 
+# Ask for SMTP credentials. Sets discrete vars in .env (for auth-service) and
+# constructs PDS_EMAIL_SMTP_URL (for pds-core).
+prompt_smtp() {
+  echo ""
+  echo "Configure SMTP (for sending emails)"
+  echo "────────────────────────────────────"
+  echo ""
+  echo "ePDS needs an SMTP server for OTP codes, password resets, and"
+  echo "email verification. Press Enter to accept defaults (local Mailpit)."
+  echo ""
+
+  local smtp_host smtp_port smtp_user smtp_pass
+
+  read -rp "SMTP host [localhost]: " smtp_host
+  smtp_host="${smtp_host:-localhost}"
+
+  local default_port="587"
+  if [ "$smtp_host" = "localhost" ]; then
+    default_port="1025"
+  fi
+  read -rp "SMTP port [${default_port}]: " smtp_port
+  smtp_port="${smtp_port:-$default_port}"
+
+  read -rp "SMTP username (blank for none): " smtp_user
+  if [ -n "$smtp_user" ]; then
+    read -rsp "SMTP password: " smtp_pass
+    echo ""
+  else
+    smtp_pass=""
+  fi
+
+  set_env_var SMTP_HOST "$smtp_host" .env
+  set_env_var SMTP_PORT "$smtp_port" .env
+  set_env_var SMTP_USER "$smtp_user" .env
+  set_env_var SMTP_PASS "$smtp_pass" .env
+
+  # Construct PDS_EMAIL_SMTP_URL: smtps for port 465, smtp otherwise
+  local scheme="smtp"
+  if [ "$smtp_port" = "465" ]; then
+    scheme="smtps"
+  fi
+
+  local smtp_url
+  if [ -n "$smtp_user" ]; then
+    # URL-encode nothing here — SMTP credentials rarely contain special chars.
+    # If they do, the user should edit .env manually.
+    smtp_url="${scheme}://${smtp_user}:${smtp_pass}@${smtp_host}:${smtp_port}"
+  else
+    smtp_url="${scheme}://${smtp_host}:${smtp_port}"
+  fi
+  set_env_var PDS_EMAIL_SMTP_URL "$smtp_url" .env
+
+  echo "  Set SMTP_HOST=${smtp_host}"
+  echo "  Set SMTP_PORT=${smtp_port}"
+  if [ -n "$smtp_user" ]; then
+    echo "  Set SMTP_USER=${smtp_user}"
+    echo "  Set SMTP_PASS=****"
+    echo "  Set PDS_EMAIL_SMTP_URL=${scheme}://${smtp_user}:****@${smtp_host}:${smtp_port}"
+  else
+    echo "  Set PDS_EMAIL_SMTP_URL=${smtp_url}"
+  fi
+}
+
 prompt_demo() {
   echo ""
   echo "Configure the demo app (optional)"
@@ -180,6 +244,36 @@ prompt_demo() {
 
 # ── Setup stages ──
 
+# Warn if any .env files already exist — setup will skip those files.
+warn_existing_env_files() {
+  local existing=()
+  for f in .env packages/pds-core/.env packages/auth-service/.env packages/demo/.env; do
+    if [ -f "$f" ]; then
+      existing+=("$f")
+    fi
+  done
+
+  if [ ${#existing[@]} -eq 0 ]; then
+    return
+  fi
+
+  echo "WARNING: The following .env files already exist and will not be overwritten:"
+  for f in "${existing[@]}"; do
+    echo "  $f"
+  done
+  echo ""
+  echo "Delete them first if you want a fresh setup."
+  echo ""
+
+  local reply
+  read -rp "Continue anyway? [y/N] " reply
+  if [[ ! "$reply" =~ ^[Yy] ]]; then
+    echo "Aborted."
+    exit 0
+  fi
+  echo ""
+}
+
 check_prerequisites() {
   for cmd in pnpm openssl node; do
     if ! command -v "$cmd" &>/dev/null; then
@@ -207,12 +301,12 @@ setup_toplevel_env() {
 
   echo ""
   prompt_hostname
+  prompt_smtp
 
   echo ""
   echo "You still need to configure:"
-  echo "  1. PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX - Generate with:"
-  echo "     openssl ecparam -name secp256k1 -genkey -noout | openssl ec -text -noout 2>/dev/null | grep priv -A 3 | tail -n +2 | tr -d '[:space:]:'"
-  echo "  2. SMTP settings        - For email delivery (see .env)"
+  echo "  PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX - Generate with:"
+  echo "    openssl ecparam -name secp256k1 -genkey -noout | openssl ec -text -noout 2>/dev/null | grep priv -A 3 | tail -n +2 | tr -d '[:space:]:'"
 }
 
 # Create a per-package .env from its .env.example, inject shared/derived vars,
@@ -285,6 +379,7 @@ main() {
   echo "=== ePDS Setup ==="
   echo ""
   check_prerequisites
+  warn_existing_env_files
   setup_toplevel_env
   setup_package_envs
   print_next_steps
