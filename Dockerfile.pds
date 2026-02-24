@@ -21,7 +21,7 @@ RUN pnpm install --frozen-lockfile
 FROM deps AS build
 COPY packages/ packages/
 COPY tsconfig.json ./
-RUN pnpm build
+RUN pnpm --filter @certified-app/pds-core... build
 
 # -- PDS Core --
 FROM node:20-alpine
