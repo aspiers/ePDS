@@ -2,7 +2,7 @@
  * Tests for better-auth OTP email wiring.
  *
  * The sendVerificationOTP callback in better-auth.ts:
- * 1. Reads the magic_auth_flow cookie from the request context
+ * 1. Reads the epds_auth_flow cookie from the request context
  * 2. Looks up the auth_flow row to find the client_id for branding
  * 3. Falls back to default PDS template if no client context
  *

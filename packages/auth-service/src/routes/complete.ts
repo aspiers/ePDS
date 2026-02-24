@@ -9,7 +9,7 @@
  * through the flow via the auth_flow table.
  *
  * Flow:
- *   1. Read magic_auth_flow cookie → get flow_id
+ *   1. Read epds_auth_flow cookie → get flow_id
  *   2. Look up auth_flow row → get request_uri, client_id
  *   3. Get better-auth session → extract verified email
  *   4. Check if consent needed (first-time client login for existing accounts)
@@ -24,7 +24,7 @@ import { fromNodeHeaders } from 'better-auth/node'
 
 const logger = createLogger('auth:complete')
 
-const AUTH_FLOW_COOKIE = 'magic_auth_flow'
+const AUTH_FLOW_COOKIE = 'epds_auth_flow'
 
 export function createCompleteRouter(
   ctx: AuthServiceContext,
@@ -37,7 +37,7 @@ export function createCompleteRouter(
     // Step 1: Get flow_id from cookie
     const flowId = req.cookies[AUTH_FLOW_COOKIE] as string | undefined
     if (!flowId) {
-      logger.warn('No magic_auth_flow cookie found on /auth/complete')
+      logger.warn('No epds_auth_flow cookie found on /auth/complete')
       res
         .status(400)
         .send('<p>Authentication session expired. Please try again.</p>')

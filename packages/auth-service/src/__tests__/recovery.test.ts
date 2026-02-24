@@ -173,7 +173,7 @@ describe('Recovery flow: /auth/complete bridge integration', () => {
       expiresAt: Date.now() + 10 * 60 * 1000,
     })
 
-    // /auth/complete will read this via the magic_auth_flow cookie
+    // /auth/complete will read this via the epds_auth_flow cookie
     const flow = db.getAuthFlow(flowId)
     expect(flow!.requestUri).toBe(requestUri)
   })

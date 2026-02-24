@@ -6,7 +6,7 @@ import { createLogger } from '@certified-app/shared'
 
 const logger = createLogger('auth:consent')
 
-const AUTH_FLOW_COOKIE = 'magic_auth_flow'
+const AUTH_FLOW_COOKIE = 'epds_auth_flow'
 
 /**
  * GET /auth/consent

@@ -64,7 +64,7 @@ sequenceDiagram
     App-->>User: 302 redirect to /oauth/authorize<br/>?request_uri=...&login_hint=email
 
     User->>Auth: GET /oauth/authorize?request_uri=...&login_hint=email
-    Auth->>Auth: Creates auth_flow row (flow_id, request_uri)<br/>Sets magic_auth_flow cookie
+    Auth->>Auth: Creates auth_flow row (flow_id, request_uri)<br/>Sets epds_auth_flow cookie
     Auth->>Auth: Sends OTP to email (via better-auth, server-side JS call)
     Auth-->>User: Renders page with OTP input visible<br/>(email step hidden)
     Auth->>Email: Sends 8-digit OTP code
@@ -75,7 +75,7 @@ sequenceDiagram
     Auth-->>User: 302 redirect to /auth/complete
 
     User->>Auth: GET /auth/complete
-    Auth->>Auth: Reads magic_auth_flow cookie → flow_id → request_uri<br/>Gets email from better-auth session
+    Auth->>Auth: Reads epds_auth_flow cookie → flow_id → request_uri<br/>Gets email from better-auth session
     Auth->>PDS: GET /oauth/epds-callback<br/>?request_uri=...&email=...&approved=1&ts=...&sig=HMAC
     PDS->>PDS: Verifies HMAC signature<br/>Creates PDS account if new user<br/>Issues authorization code
     PDS-->>User: 302 redirect to client redirect_uri?code=...&state=...
@@ -105,7 +105,7 @@ sequenceDiagram
     App-->>User: 302 redirect to /oauth/authorize?request_uri=...
 
     User->>Auth: GET /oauth/authorize?request_uri=...
-    Auth->>Auth: Creates auth_flow row (flow_id, request_uri)<br/>Sets magic_auth_flow cookie
+    Auth->>Auth: Creates auth_flow row (flow_id, request_uri)<br/>Sets epds_auth_flow cookie
     Auth-->>User: Renders page with email input form visible
 
     User->>Auth: Submits email address
@@ -119,7 +119,7 @@ sequenceDiagram
     Auth-->>User: 302 redirect to /auth/complete
 
     User->>Auth: GET /auth/complete
-    Auth->>Auth: Reads magic_auth_flow cookie → flow_id → request_uri<br/>Gets email from better-auth session
+    Auth->>Auth: Reads epds_auth_flow cookie → flow_id → request_uri<br/>Gets email from better-auth session
     Auth->>PDS: GET /oauth/epds-callback<br/>?request_uri=...&email=...&approved=1&ts=...&sig=HMAC
     PDS->>PDS: Verifies HMAC signature<br/>Creates PDS account if new user<br/>Issues authorization code
     PDS-->>User: 302 redirect to client redirect_uri?code=...&state=...

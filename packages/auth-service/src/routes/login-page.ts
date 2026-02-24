@@ -7,7 +7,7 @@
  *   1. Receive request from pds-core AS metadata redirect
  *      (?request_uri=...&client_id=...&prompt=...&login_hint=...)
  *   2. Create an auth_flow row (flow_id, request_uri, client_id)
- *   3. Set magic_auth_flow cookie (10 min, httpOnly)
+ *   3. Set epds_auth_flow cookie (10 min, httpOnly)
  *   4. Render login page with:
  *      - Email OTP form (submits to better-auth /api/auth/* endpoints)
  *      - Social login buttons (only for configured providers)
@@ -18,7 +18,7 @@
  *   - Email OTP: user submits code to /api/auth/sign-in/email-otp/verify
  *   - Social: user clicks button → /api/auth/sign-in/{provider} → OAuth exchange
  *   - On success, better-auth redirects to /auth/complete (the bridge route)
- *   - Bridge reads magic_auth_flow cookie → auth_flow → HMAC-signed redirect
+ *   - Bridge reads epds_auth_flow cookie → auth_flow → HMAC-signed redirect
  */
 import { Router, type Request, type Response } from 'express'
 import { randomBytes } from 'node:crypto'
@@ -33,7 +33,7 @@ import { socialProviders } from '../better-auth.js'
 
 const logger = createLogger('auth:login-page')
 
-const AUTH_FLOW_COOKIE = 'magic_auth_flow'
+const AUTH_FLOW_COOKIE = 'epds_auth_flow'
 const AUTH_FLOW_TTL_MS = 10 * 60 * 1000 // 10 minutes
 
 export function createLoginPageRouter(ctx: AuthServiceContext): Router {

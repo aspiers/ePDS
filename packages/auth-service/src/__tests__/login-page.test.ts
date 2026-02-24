@@ -3,7 +3,7 @@
  *
  * The login page:
  * 1. Creates an auth_flow row to thread request_uri through better-auth
- * 2. Sets the magic_auth_flow cookie
+ * 2. Sets the epds_auth_flow cookie
  * 3. Renders a login page with email OTP form + optional social buttons
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'

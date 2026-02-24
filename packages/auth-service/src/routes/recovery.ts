@@ -12,7 +12,7 @@
  *   better-auth session → /auth/complete → HMAC-signed epds-callback
  *
  * Note: recovery uses the backup email as the verified identity. The auth_flow
- * table threads request_uri through the flow via magic_auth_flow cookie.
+ * table threads request_uri through the flow via epds_auth_flow cookie.
  */
 import { Router, type Request, type Response } from 'express'
 import type { AuthServiceContext } from '../context.js'
@@ -21,7 +21,7 @@ import { escapeHtml, maskEmail } from '@certified-app/shared'
 
 const logger = createLogger('auth:recovery')
 
-const AUTH_FLOW_COOKIE = 'magic_auth_flow'
+const AUTH_FLOW_COOKIE = 'epds_auth_flow'
 
 export function createRecoveryRouter(
   ctx: AuthServiceContext,

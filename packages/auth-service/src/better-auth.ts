@@ -19,7 +19,7 @@ import type { EmailSender } from './email/sender.js'
 
 const logger = createLogger('auth:better-auth')
 
-const AUTH_FLOW_COOKIE = 'magic_auth_flow'
+const AUTH_FLOW_COOKIE = 'epds_auth_flow'
 
 /**
  * Build the social providers config from env vars.
@@ -149,7 +149,7 @@ export function createBetterAuth(emailSender: EmailSender, db: EpdsDb): any {
         /**
          * Wire OTP sending to the existing EmailSender.
          *
-         * Resolves client branding by reading the magic_auth_flow cookie from
+         * Resolves client branding by reading the epds_auth_flow cookie from
          * the request context (if present) and looking up the auth_flow row to
          * get the client_id. Falls back to the default PDS template when no
          * client context is available (e.g. account settings login).
