@@ -54,7 +54,7 @@ generate_secrets_in_file() {
 inject_shared_vars() {
   local target="$1"
   for var in PDS_HOSTNAME PDS_PUBLIC_URL EPDS_CALLBACK_SECRET EPDS_INTERNAL_SECRET PDS_ADMIN_PASSWORD \
-             SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASS; do
+             SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASS SMTP_FROM SMTP_FROM_NAME PDS_EMAIL_FROM_ADDRESS; do
     if ! grep -qE "^${var}=" "$target" 2>/dev/null; then
       continue
     fi
@@ -71,9 +71,8 @@ inject_shared_vars() {
 inject_derived_vars() {
   local target="$1"
 
-  local auth_hostname pds_hostname
+  local auth_hostname
   auth_hostname=$(read_env_var AUTH_HOSTNAME .env)
-  pds_hostname=$(read_env_var PDS_HOSTNAME .env)
 
   if grep -qE "^AUTH_HOSTNAME=" "$target" 2>/dev/null && [ -n "$auth_hostname" ]; then
     set_env_var AUTH_HOSTNAME "$auth_hostname" "$target"
@@ -81,13 +80,6 @@ inject_derived_vars() {
   if grep -qE "^EPDS_LINK_BASE_URL=" "$target" 2>/dev/null && [ -n "$auth_hostname" ]; then
     set_env_var EPDS_LINK_BASE_URL "https://${auth_hostname}/auth/verify" "$target"
   fi
-  if grep -qE "^SMTP_FROM=" "$target" 2>/dev/null && [ -n "$pds_hostname" ]; then
-    set_env_var SMTP_FROM "noreply@${pds_hostname}" "$target"
-  fi
-  if grep -qE "^PDS_EMAIL_FROM_ADDRESS=" "$target" 2>/dev/null && [ -n "$pds_hostname" ]; then
-    set_env_var PDS_EMAIL_FROM_ADDRESS "noreply@${pds_hostname}" "$target"
-  fi
-
   # PDS_EMAIL_SMTP_URL is pds-core-specific, constructed from SMTP components
   local smtp_url
   smtp_url=$(read_env_var PDS_EMAIL_SMTP_URL .env)
@@ -144,15 +136,10 @@ prompt_hostname() {
   set_env_var PDS_PUBLIC_URL "$pds_public_url" .env
   set_env_var AUTH_HOSTNAME "$auth_hostname" .env
   set_env_var EPDS_LINK_BASE_URL "${proto}://${auth_hostname}/auth/verify" .env
-  set_env_var SMTP_FROM "noreply@${pds_hostname}" .env
-  set_env_var PDS_EMAIL_FROM_ADDRESS "noreply@${pds_hostname}" .env
-
   echo "  Set PDS_HOSTNAME=${pds_hostname}"
   echo "  Set PDS_PUBLIC_URL=${pds_public_url}"
   echo "  Set AUTH_HOSTNAME=${auth_hostname}"
   echo "  Set EPDS_LINK_BASE_URL=${proto}://${auth_hostname}/auth/verify"
-  echo "  Set SMTP_FROM=noreply@${pds_hostname}"
-  echo "  Set PDS_EMAIL_FROM_ADDRESS=noreply@${pds_hostname}"
 }
 
 # Ask for SMTP credentials. Sets discrete vars in .env (for auth-service) and
@@ -186,10 +173,24 @@ prompt_smtp() {
     smtp_pass=""
   fi
 
+  # From address and display name
+  local pds_hostname smtp_from smtp_from_name
+  pds_hostname=$(read_env_var PDS_HOSTNAME .env)
+  local default_from="noreply@${pds_hostname}"
+
+  read -rp "From address [${default_from}]: " smtp_from
+  smtp_from="${smtp_from:-$default_from}"
+
+  read -rp "From name [ePDS]: " smtp_from_name
+  smtp_from_name="${smtp_from_name:-ePDS}"
+
   set_env_var SMTP_HOST "$smtp_host" .env
   set_env_var SMTP_PORT "$smtp_port" .env
   set_env_var SMTP_USER "$smtp_user" .env
   set_env_var SMTP_PASS "$smtp_pass" .env
+  set_env_var SMTP_FROM "$smtp_from" .env
+  set_env_var SMTP_FROM_NAME "$smtp_from_name" .env
+  set_env_var PDS_EMAIL_FROM_ADDRESS "$smtp_from" .env
 
   # Construct PDS_EMAIL_SMTP_URL: smtps for port 465, smtp otherwise
   local scheme="smtp"
@@ -216,6 +217,9 @@ prompt_smtp() {
   else
     echo "  Set PDS_EMAIL_SMTP_URL=${smtp_url}"
   fi
+  echo "  Set SMTP_FROM=${smtp_from}"
+  echo "  Set SMTP_FROM_NAME=${smtp_from_name}"
+  echo "  Set PDS_EMAIL_FROM_ADDRESS=${smtp_from}"
 }
 
 prompt_demo() {
