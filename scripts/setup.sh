@@ -267,24 +267,16 @@ setup_package_envs() {
   echo "  packages/demo/.env.example"
 }
 
-install_and_build() {
-  echo ""
-  echo "Installing dependencies..."
-  pnpm install
-
-  echo "Building..."
-  pnpm build
-}
-
 print_next_steps() {
   echo ""
   echo "=== Setup complete ==="
   echo ""
   echo "Next steps:"
   echo "  1. Review .env files and adjust if needed"
-  echo "  2. pnpm dev              - Start core + auth in dev mode"
-  echo "  3. pnpm dev:demo         - Start the demo app (separate terminal)"
-  echo "  4. docker compose up -d  - Or start with Docker instead"
+  echo "  2. pnpm install && pnpm build"
+  echo "  3. pnpm dev              - Start core + auth in dev mode"
+  echo "  4. pnpm dev:demo         - Start the demo app (separate terminal)"
+  echo "  5. docker compose up -d  - Or start with Docker instead"
 }
 
 # ── Main ──
@@ -295,7 +287,6 @@ main() {
   check_prerequisites
   setup_toplevel_env
   setup_package_envs
-  install_and_build
   print_next_steps
 }
 
