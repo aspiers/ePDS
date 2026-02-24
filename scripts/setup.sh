@@ -53,10 +53,16 @@ generate_secrets_in_file() {
 # so packages don't end up with vars they don't use.
 inject_shared_vars() {
   local target="$1"
-  for var in PDS_HOSTNAME PDS_PUBLIC_URL EPDS_CALLBACK_SECRET EPDS_INTERNAL_SECRET PDS_ADMIN_PASSWORD \
+  local example="${target%.env}.env.example"
+  for var in PDS_HOSTNAME PDS_PUBLIC_URL AUTH_HOSTNAME \
+             EPDS_CALLBACK_SECRET EPDS_INTERNAL_SECRET PDS_ADMIN_PASSWORD \
              PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX \
              SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASS SMTP_FROM SMTP_FROM_NAME PDS_EMAIL_FROM_ADDRESS; do
-    if ! grep -qE "^${var}=" "$target" 2>/dev/null; then
+    # Skip if the var isn't in the target AND isn't in the package's .env.example.
+    # This avoids injecting vars a package doesn't use, while still handling
+    # .env files created from an older .env.example that lacked the var.
+    if ! grep -qE "^${var}=" "$target" 2>/dev/null \
+       && ! grep -qE "^${var}=" "$example" 2>/dev/null; then
       continue
     fi
     local val
@@ -67,24 +73,28 @@ inject_shared_vars() {
   done
 }
 
-# Inject derived vars that depend on the hostname into a per-package .env.
-# Only sets vars that already exist in the target file.
+# Inject derived vars that need computation (not just a plain copy from .env).
+# Also checks .env.example so vars added after initial setup are still applied.
 inject_derived_vars() {
   local target="$1"
+  local example="${target%.env}.env.example"
+
+  # Helper: true if var is in the target .env OR its .env.example
+  var_belongs() {
+    grep -qE "^${1}=" "$target" 2>/dev/null \
+      || grep -qE "^${1}=" "$example" 2>/dev/null
+  }
 
   local auth_hostname
   auth_hostname=$(read_env_var AUTH_HOSTNAME .env)
 
-  if grep -qE "^AUTH_HOSTNAME=" "$target" 2>/dev/null && [ -n "$auth_hostname" ]; then
-    set_env_var AUTH_HOSTNAME "$auth_hostname" "$target"
-  fi
-  if grep -qE "^EPDS_LINK_BASE_URL=" "$target" 2>/dev/null && [ -n "$auth_hostname" ]; then
+  if var_belongs EPDS_LINK_BASE_URL && [ -n "$auth_hostname" ]; then
     set_env_var EPDS_LINK_BASE_URL "https://${auth_hostname}/auth/verify" "$target"
   fi
   # PDS_EMAIL_SMTP_URL is pds-core-specific, constructed from SMTP components
   local smtp_url
   smtp_url=$(read_env_var PDS_EMAIL_SMTP_URL .env)
-  if grep -qE "^PDS_EMAIL_SMTP_URL=" "$target" 2>/dev/null && [ -n "$smtp_url" ]; then
+  if var_belongs PDS_EMAIL_SMTP_URL && [ -n "$smtp_url" ]; then
     set_env_var PDS_EMAIL_SMTP_URL "$smtp_url" "$target"
   fi
 }
