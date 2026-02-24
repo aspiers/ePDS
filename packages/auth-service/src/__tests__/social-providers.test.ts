@@ -8,7 +8,7 @@
  * When configured, the login page renders social login buttons that redirect
  * to better-auth's provider endpoints (/api/auth/sign-in/social?provider=...).
  * After OAuth exchange, better-auth redirects to /auth/complete (bridge route)
- * which reads the session and issues an HMAC-signed magic-callback.
+ * which reads the session and issues an HMAC-signed epds-callback.
  */
 import { describe, it, expect } from 'vitest'
 
@@ -112,7 +112,7 @@ describe('Social login flow (unit)', () => {
   it('bridge route /auth/complete is the callback for all auth methods', () => {
     // Both email OTP and social login redirect to /auth/complete
     // The bridge reads the better-auth session (regardless of auth method)
-    // and issues an HMAC-signed redirect to pds-core /oauth/magic-callback
+    // and issues an HMAC-signed redirect to pds-core /oauth/epds-callback
     const callbackUrl = '/auth/complete'
     expect(callbackUrl).toBe('/auth/complete')
   })

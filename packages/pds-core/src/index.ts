@@ -2,7 +2,7 @@
  * ePDS Core
  *
  * Wraps the stock @atproto/pds with:
- * - OAuth /magic-callback endpoint that issues authorization codes directly
+ * - OAuth /epds-callback endpoint that issues authorization codes directly
  * - Modified AS metadata pointing authorization_endpoint to auth subdomain
  * - Account creation for new users (via PLC + repo init)
  *
@@ -10,8 +10,8 @@
  *   1. Client -> PAR -> PDS (stock)
  *   2. PDS redirects to auth.pds.example/oauth/authorize (via AS metadata)
  *   3. User enters email, receives magic link, verifies
- *   4. Auth service redirects to pds.example/oauth/magic-callback
- *   5. Magic callback: creates account if needed, issues code, redirects to client
+ *   4. Auth service redirects to pds.example/oauth/epds-callback
+ *   5. ePDS callback: creates account if needed, issues code, redirects to client
  */
 import * as dotenv from 'dotenv'
 dotenv.config()
@@ -42,23 +42,23 @@ async function main() {
 
   if (!provider) {
     logger.warn(
-      'OAuth provider not configured, starting without magic link integration',
+      'OAuth provider not configured, starting without ePDS callback integration',
     )
   } else {
-    logger.info('OAuth provider active, setting up magic link integration')
+    logger.info('OAuth provider active, setting up ePDS callback integration')
   }
 
   // =========================================================================
-  // MAGIC CALLBACK - The core integration endpoint
+  // EPDS CALLBACK - The core integration endpoint
   // =========================================================================
   //
-  // Called by the auth service after magic link verification + user consent.
+  // Called by the auth service after OTP verification + user consent.
   // Steps: load device -> resolve account -> issue code -> redirect to client
 
-  const magicCallbackSecret =
-    process.env.MAGIC_CALLBACK_SECRET || 'dev-callback-secret-change-me'
+  const epdsCallbackSecret =
+    process.env.EPDS_CALLBACK_SECRET || 'dev-callback-secret-change-me'
 
-  pds.app.get('/oauth/magic-callback', async (req, res) => {
+  pds.app.get('/oauth/epds-callback', async (req, res) => {
     // We use `as any` casts for branded OAuth types (RequestUri, Code, etc.)
     // since these internal types aren't cleanly exported from @atproto/oauth-provider.
 
@@ -93,7 +93,7 @@ async function main() {
       },
       ts,
       sig,
-      magicCallbackSecret,
+      epdsCallbackSecret,
     )
 
     if (!signatureValid) {
@@ -243,7 +243,7 @@ async function main() {
 
       logger.info({ did, redirectUri }, 'Auth code issued')
     } catch (err) {
-      logger.error({ err }, 'Magic callback error')
+      logger.error({ err }, 'ePDS callback error')
 
       // Try to redirect error back to client
       try {

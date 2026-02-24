@@ -19,7 +19,7 @@ function makeMockContext(db: EpdsDb): AuthServiceContext {
     port: 3001,
     sessionSecret: 'test-session-secret',
     csrfSecret: 'test-csrf-secret',
-    magicCallbackSecret: 'test-callback-secret-32-chars-long!!',
+    epdsCallbackSecret: 'test-callback-secret-32-chars-long!!',
     pdsHostname: 'pds.localhost',
     pdsPublicUrl: 'http://pds.localhost:3000',
     email: {

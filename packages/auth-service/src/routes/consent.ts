@@ -151,7 +151,7 @@ export function createConsentRouter(ctx: AuthServiceContext): Router {
       ctx.db.recordClientLogin(email, clientId)
     }
 
-    // Build HMAC-signed redirect URL to pds-core /oauth/magic-callback
+    // Build HMAC-signed redirect URL to pds-core /oauth/epds-callback
     const callbackParams = {
       request_uri: requestUri,
       email,
@@ -160,17 +160,17 @@ export function createConsentRouter(ctx: AuthServiceContext): Router {
     }
     const { sig, ts } = signCallback(
       callbackParams,
-      ctx.config.magicCallbackSecret,
+      ctx.config.epdsCallbackSecret,
     )
     const params = new URLSearchParams({ ...callbackParams, ts, sig })
 
     logger.info(
       { email, isNew, clientId },
-      'Consent approved, redirecting to magic-callback',
+      'Consent approved, redirecting to epds-callback',
     )
     res.redirect(
       303,
-      `${ctx.config.pdsPublicUrl}/oauth/magic-callback?${params.toString()}`,
+      `${ctx.config.pdsPublicUrl}/oauth/epds-callback?${params.toString()}`,
     )
   })
 

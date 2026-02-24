@@ -116,8 +116,8 @@ async function main() {
     sessionSecret:
       process.env.AUTH_SESSION_SECRET || 'dev-session-secret-change-me',
     csrfSecret: process.env.AUTH_CSRF_SECRET || 'dev-csrf-secret-change-me',
-    magicCallbackSecret:
-      process.env.MAGIC_CALLBACK_SECRET || 'dev-callback-secret-change-me',
+    epdsCallbackSecret:
+      process.env.EPDS_CALLBACK_SECRET || 'dev-callback-secret-change-me',
     pdsHostname: process.env.PDS_HOSTNAME || 'localhost',
     pdsPublicUrl: process.env.PDS_PUBLIC_URL || 'http://localhost:3000',
     email: {

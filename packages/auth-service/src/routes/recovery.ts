@@ -9,7 +9,7 @@
  *   5. Redirect to /auth/complete to complete the AT Protocol flow
  *
  * This follows the same bridge pattern as the main login flow:
- *   better-auth session → /auth/complete → HMAC-signed magic-callback
+ *   better-auth session → /auth/complete → HMAC-signed epds-callback
  *
  * Note: recovery uses the backup email as the verified identity. The auth_flow
  * table threads request_uri through the flow via magic_auth_flow cookie.

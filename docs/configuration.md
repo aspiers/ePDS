@@ -27,7 +27,7 @@ marked `[shared]` in the per-package `.env.example` files.
 | ----------------------- | ------------------------------------------------------------------------------------------------------- |
 | `PDS_HOSTNAME`          | Your PDS domain — handles will be `<random>.PDS_HOSTNAME`                                               |
 | `PDS_PUBLIC_URL`        | Full public URL of the PDS, used as OAuth issuer (e.g. `https://pds.example.com`)                       |
-| `MAGIC_CALLBACK_SECRET` | HMAC-SHA256 secret signing the `/oauth/magic-callback` redirect — generate with `openssl rand -hex 32`  |
+| `EPDS_CALLBACK_SECRET`  | HMAC-SHA256 secret signing the `/oauth/epds-callback` redirect — generate with `openssl rand -hex 32`   |
 | `MAGIC_INTERNAL_SECRET` | Shared secret for internal service-to-service calls (auth → PDS) — generate with `openssl rand -hex 32` |
 | `PDS_ADMIN_PASSWORD`    | PDS admin API password (auth-service uses it for account provisioning)                                  |
 | `NODE_ENV`              | Set to `development` for dev mode (disables secure cookies)                                             |

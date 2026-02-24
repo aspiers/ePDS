@@ -5,7 +5,7 @@
  * (this is the `callbackURL` passed to better-auth sign-in methods).
  *
  * Translates a better-auth session into an HMAC-signed redirect to
- * pds-core's /oauth/magic-callback, threading the AT Protocol request_uri
+ * pds-core's /oauth/epds-callback, threading the AT Protocol request_uri
  * through the flow via the auth_flow table.
  *
  * Flow:
@@ -14,7 +14,7 @@
  *   3. Get better-auth session → extract verified email
  *   4. Check if consent needed (first-time client login for existing accounts)
  *   5a. Needs consent → redirect to /auth/consent?flow_id=...
- *   5b. No consent needed → build HMAC-signed redirect to pds-core /oauth/magic-callback
+ *   5b. No consent needed → build HMAC-signed redirect to pds-core /oauth/epds-callback
  *   6. Delete auth_flow row + clear cookie
  */
 import { Router, type Request, type Response } from 'express'
@@ -134,7 +134,7 @@ export function createCompleteRouter(
     ctx.db.deleteAuthFlow(flowId)
     res.clearCookie(AUTH_FLOW_COOKIE)
 
-    // Step 5b: Build HMAC-signed redirect to pds-core /oauth/magic-callback
+    // Step 5b: Build HMAC-signed redirect to pds-core /oauth/epds-callback
     const callbackParams = {
       request_uri: flow.requestUri,
       email,
@@ -143,14 +143,14 @@ export function createCompleteRouter(
     }
     const { sig, ts } = signCallback(
       callbackParams,
-      ctx.config.magicCallbackSecret,
+      ctx.config.epdsCallbackSecret,
     )
     const params = new URLSearchParams({ ...callbackParams, ts, sig })
-    const redirectUrl = `${ctx.config.pdsPublicUrl}/oauth/magic-callback?${params.toString()}`
+    const redirectUrl = `${ctx.config.pdsPublicUrl}/oauth/epds-callback?${params.toString()}`
 
     logger.info(
       { email, flowId, isNewAccount },
-      'Bridge: redirecting to magic-callback',
+      'Bridge: redirecting to epds-callback',
     )
     res.redirect(303, redirectUrl)
   })

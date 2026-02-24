@@ -52,7 +52,7 @@ export interface CallbackParams {
 }
 
 /**
- * Sign the magic-callback redirect parameters with HMAC-SHA256.
+ * Sign the epds-callback redirect parameters with HMAC-SHA256.
  * Returns the hex signature and the Unix timestamp (seconds) used.
  *
  * Payload: request_uri, email, approved, new_account, and ts joined by newlines.
@@ -77,7 +77,7 @@ export function signCallback(
 const CALLBACK_MAX_AGE_SECONDS = 5 * 60 // 5 minutes
 
 /**
- * Verify a signed magic-callback redirect URL.
+ * Verify a signed epds-callback redirect URL.
  * Returns true only when the signature is valid and the timestamp is fresh.
  * Uses timingSafeEqual to avoid timing side-channels.
  */

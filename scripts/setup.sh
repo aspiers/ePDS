@@ -35,7 +35,7 @@ if [ ! -f .env ]; then
   cp .env.example .env
 
   # Auto-generate all secrets
-  for var in PDS_JWT_SECRET PDS_DPOP_SECRET AUTH_SESSION_SECRET AUTH_CSRF_SECRET PDS_ADMIN_PASSWORD MAGIC_CALLBACK_SECRET MAGIC_INTERNAL_SECRET; do
+  for var in PDS_JWT_SECRET PDS_DPOP_SECRET AUTH_SESSION_SECRET AUTH_CSRF_SECRET PDS_ADMIN_PASSWORD EPDS_CALLBACK_SECRET MAGIC_INTERNAL_SECRET; do
     secret=$(generate_secret)
     sed_inplace "s|^${var}=$|${var}=${secret}|" .env
     echo "  Generated $var"

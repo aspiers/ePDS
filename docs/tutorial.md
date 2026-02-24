@@ -76,7 +76,7 @@ sequenceDiagram
 
     User->>Auth: GET /auth/complete
     Auth->>Auth: Reads magic_auth_flow cookie → flow_id → request_uri<br/>Gets email from better-auth session
-    Auth->>PDS: GET /oauth/magic-callback<br/>?request_uri=...&email=...&approved=1&ts=...&sig=HMAC
+    Auth->>PDS: GET /oauth/epds-callback<br/>?request_uri=...&email=...&approved=1&ts=...&sig=HMAC
     PDS->>PDS: Verifies HMAC signature<br/>Creates PDS account if new user<br/>Issues authorization code
     PDS-->>User: 302 redirect to client redirect_uri?code=...&state=...
 
@@ -120,7 +120,7 @@ sequenceDiagram
 
     User->>Auth: GET /auth/complete
     Auth->>Auth: Reads magic_auth_flow cookie → flow_id → request_uri<br/>Gets email from better-auth session
-    Auth->>PDS: GET /oauth/magic-callback<br/>?request_uri=...&email=...&approved=1&ts=...&sig=HMAC
+    Auth->>PDS: GET /oauth/epds-callback<br/>?request_uri=...&email=...&approved=1&ts=...&sig=HMAC
     PDS->>PDS: Verifies HMAC signature<br/>Creates PDS account if new user<br/>Issues authorization code
     PDS-->>User: 302 redirect to client redirect_uri?code=...&state=...
 

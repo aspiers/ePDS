@@ -123,7 +123,7 @@ The core e2e test exercises the full OAuth login:
 5. Auth service shows OTP form (with email pre-filled via login_hint)
 6. Extract OTP from MailHog API (`http://localhost:8025/api/v2/messages`)
 7. Enter OTP in the auth form
-8. Browser redirected back through PDS (magic-callback) to demo (callback)
+8. Browser redirected back through PDS (epds-callback) to demo (callback)
 9. Assert: welcome page shows handle and DID
 
 ### Services lifecycle

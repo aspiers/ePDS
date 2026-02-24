@@ -6,11 +6,11 @@ AI agent instructions for the ePDS repository.
 
 Pnpm monorepo with three packages:
 
-| Package                       | Path                     | Description                                       |
-| ----------------------------- | ------------------------ | ------------------------------------------------- |
-| `@certified-app/shared`       | `packages/shared/`       | SQLite DB, crypto utils, logger, types            |
-| `@certified-app/auth-service` | `packages/auth-service/` | Login UI, OTP, social login, account settings     |
-| `@certified-app/pds-core`     | `packages/pds-core/`     | Wraps `@atproto/pds` with magic-callback endpoint |
+| Package                       | Path                     | Description                                      |
+| ----------------------------- | ------------------------ | ------------------------------------------------ |
+| `@certified-app/shared`       | `packages/shared/`       | SQLite DB, crypto utils, logger, types           |
+| `@certified-app/auth-service` | `packages/auth-service/` | Login UI, OTP, social login, account settings    |
+| `@certified-app/pds-core`     | `packages/pds-core/`     | Wraps `@atproto/pds` with epds-callback endpoint |
 
 ## Build / Dev Commands
 
@@ -149,7 +149,7 @@ import { AuthServiceContext } from './context.js'
 
 ## Security
 
-- All magic-callback redirects must be HMAC-SHA256 signed using
+- All epds-callback redirects must be HMAC-SHA256 signed using
   `signCallback()` / `verifyCallback()` from `@certified-app/shared`.
 - Use `timingSafeEqual()` for all secret/token comparisons.
 - OTP codes: 8-digit, single-use, managed by better-auth.
