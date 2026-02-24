@@ -330,13 +330,16 @@ setup_toplevel_env() {
   prompt_hostname
   prompt_smtp
 
-  echo ""
   local rotation_key
   rotation_key=$(read_env_var PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX .env)
   if [ -z "$rotation_key" ]; then
-    echo "You still need to configure:"
-    echo "  PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX - Generate with:"
-    echo "    openssl ecparam -name secp256k1 -genkey -noout | openssl ec -text -noout 2>/dev/null | grep priv -A 3 | tail -n +2 | tr -d '[:space:]:'"
+    echo ""
+    echo "Generating PLC rotation key..."
+    rotation_key=$(openssl ecparam -name secp256k1 -genkey -noout \
+      | openssl ec -text -noout 2>/dev/null \
+      | grep priv -A 3 | tail -n +2 | tr -d '[:space:]:')
+    set_env_var PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX "$rotation_key" .env
+    echo "  Generated PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX"
   fi
 }
 
