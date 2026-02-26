@@ -189,14 +189,41 @@ openssl ecparam -name secp256k1 -genkey -noout | \
 openssl rand -hex 32
 ```
 
-## Generating an Invite Code
+## Invite Codes
 
-If `PDS_INVITE_REQUIRED` is true (the default), generate a high-`useCount` invite code
-and set it as `EPDS_INVITE_CODE`:
+The AT Protocol PDS requires invite codes for account creation by default
+(`PDS_INVITE_REQUIRED=true`). You have two options:
+
+### Option 1: Create an invite code (recommended for production)
+
+Once the PDS is running, generate a high-`useCount` invite code via the admin
+API and set it as `EPDS_INVITE_CODE` on the pds-core service:
 
 ```bash
+# Encode credentials (portable across GNU/Linux and macOS)
+AUTH=$(printf 'admin:<PDS_ADMIN_PASSWORD>' | base64 | tr -d '\n')
+
 curl -X POST https://<pds-hostname>/xrpc/com.atproto.server.createInviteCode \
   -H "Content-Type: application/json" \
-  -H "Authorization: Basic $(echo -n 'admin:<PDS_ADMIN_PASSWORD>' | base64)" \
-  -d '{"useCount": 1000}'
+  -H "Authorization: Basic $AUTH" \
+  -d '{"useCount": 9999999}'
 ```
+
+The response contains the invite code:
+
+```json
+{ "code": "your-pds-hostname-xxxxx-xxxxx" }
+```
+
+Set it as `EPDS_INVITE_CODE` on pds-core (Railway example):
+
+```bash
+railway variable set EPDS_INVITE_CODE=<code> -s '@certified-app/pds-core'
+```
+
+### Option 2: Disable invite codes (simpler, less secure)
+
+For test or development environments, you can disable the invite code
+requirement entirely by setting `PDS_INVITE_REQUIRED=false` on the pds-core
+service. This allows anyone who can reach the PDS to create accounts, so it
+is **not recommended for production**.

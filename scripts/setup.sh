@@ -57,6 +57,7 @@ inject_shared_vars() {
   for var in PDS_HOSTNAME PDS_PUBLIC_URL AUTH_HOSTNAME \
              EPDS_CALLBACK_SECRET EPDS_INTERNAL_SECRET PDS_ADMIN_PASSWORD \
              PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX \
+             EPDS_INVITE_CODE \
              SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASS SMTP_FROM SMTP_FROM_NAME PDS_EMAIL_FROM_ADDRESS; do
     # Skip if the var isn't in the target AND isn't in the package's .env.example.
     # This avoids injecting vars a package doesn't use, while still handling
@@ -401,6 +402,11 @@ print_next_steps() {
   echo "  3. pnpm dev              - Start core + auth in dev mode"
   echo "  4. pnpm dev:demo         - Start the demo app (separate terminal)"
   echo "  5. docker compose up -d  - Or start with Docker instead"
+  echo ""
+  echo "  NOTE: The PDS requires invite codes by default. After the PDS is"
+  echo "  running, generate one via the admin API and set EPDS_INVITE_CODE"
+  echo "  in pds-core's environment. See docs/deployment.md for details."
+  echo "  Alternatively, set PDS_INVITE_REQUIRED=false to disable this."
   echo ""
   echo "For Railway deployment, paste the output of these commands into"
   echo "each service's raw environment editor:"

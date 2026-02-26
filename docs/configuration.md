@@ -34,21 +34,22 @@ marked `[shared]` in the per-package `.env.example` files.
 
 ## PDS Core
 
-| Variable                                    | Description                                                                    |
-| ------------------------------------------- | ------------------------------------------------------------------------------ |
-| `PDS_PORT`                                  | Port for PDS Core (default `3000`)                                             |
-| `PDS_DATA_DIRECTORY`                        | Path to data directory (default `/data`)                                       |
-| `PDS_DID_PLC_URL`                           | AT Protocol PLC directory URL (default `https://plc.directory`)                |
-| `PDS_BSKY_APP_VIEW_URL`                     | Bluesky app view URL (default `https://api.bsky.app`)                          |
-| `PDS_BSKY_APP_VIEW_DID`                     | Bluesky app view DID (default `did:web:api.bsky.app`)                          |
-| `PDS_CRAWLERS`                              | AT Protocol crawlers (default `https://bsky.network`)                          |
-| `PDS_JWT_SECRET`                            | Secret for JWT signing — generate with `openssl rand -hex 32`                  |
-| `PDS_DPOP_SECRET`                           | Secret for DPoP — generate with `openssl rand -hex 32`                         |
-| `PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX` | secp256k1 private key for PLC rotation — see [deployment.md](deployment.md)    |
-| `PDS_EMAIL_SMTP_URL`                        | SMTP URL (e.g. `smtps://user:pass@smtp.resend.com:465`)                        |
-| `PDS_EMAIL_FROM_ADDRESS`                    | Sender address for PDS emails                                                  |
-| `PDS_BLOBSTORE_DISK_LOCATION`               | Path to blob storage directory (default `/data/blobs`)                         |
-| `EPDS_INVITE_CODE`                          | Pre-generated invite code for account creation (if `PDS_INVITE_REQUIRED=true`) |
+| Variable                                    | Description                                                                                      |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `PDS_PORT`                                  | Port for PDS Core (default `3000`)                                                               |
+| `PDS_DATA_DIRECTORY`                        | Path to data directory (default `/data`)                                                         |
+| `PDS_DID_PLC_URL`                           | AT Protocol PLC directory URL (default `https://plc.directory`)                                  |
+| `PDS_BSKY_APP_VIEW_URL`                     | Bluesky app view URL (default `https://api.bsky.app`)                                            |
+| `PDS_BSKY_APP_VIEW_DID`                     | Bluesky app view DID (default `did:web:api.bsky.app`)                                            |
+| `PDS_CRAWLERS`                              | AT Protocol crawlers (default `https://bsky.network`)                                            |
+| `PDS_JWT_SECRET`                            | Secret for JWT signing — generate with `openssl rand -hex 32`                                    |
+| `PDS_DPOP_SECRET`                           | Secret for DPoP — generate with `openssl rand -hex 32`                                           |
+| `PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX` | secp256k1 private key for PLC rotation — see [deployment.md](deployment.md)                      |
+| `PDS_EMAIL_SMTP_URL`                        | SMTP URL (e.g. `smtps://user:pass@smtp.resend.com:465`)                                          |
+| `PDS_EMAIL_FROM_ADDRESS`                    | Sender address for PDS emails                                                                    |
+| `PDS_BLOBSTORE_DISK_LOCATION`               | Path to blob storage directory (default `/data/blobs`)                                           |
+| `EPDS_INVITE_CODE`                          | Pre-generated invite code for account creation (see [deployment.md](deployment.md#invite-codes)) |
+| `PDS_INVITE_REQUIRED`                       | Whether invite codes are required for account creation (default `true`)                          |
 
 Optional PDS email variables:
 
