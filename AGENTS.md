@@ -51,7 +51,13 @@ script — all tests are run from the root via vitest.
 
 ```bash
 # Build images (always use --no-cache — cache busting is broken)
-sudo -g docker bash -c "cd /data/projects/ePDS && docker compose build --no-cache"
+# IMPORTANT: Only rebuild the services that changed. Check the diff to
+# determine which packages are affected, then pass service names:
+sudo -g docker bash -c "cd /data/projects/ePDS && docker compose build --no-cache auth"
+sudo -g docker bash -c "cd /data/projects/ePDS && docker compose build --no-cache core"
+sudo -g docker bash -c "cd /data/projects/ePDS && docker compose build --no-cache demo"
+# Only use bare 'docker compose build --no-cache' (all services) when
+# shared/ changed or you genuinely need to rebuild everything.
 
 # Run the full stack
 sudo -g docker bash -c "cd /data/projects/ePDS && docker compose up -d"
@@ -60,6 +66,15 @@ sudo -g docker bash -c "cd /data/projects/ePDS && docker compose logs -f"
 # Always use 'up -d' (not 'restart') to pick up .env changes
 sudo -g docker bash -c "cd /data/projects/ePDS && docker compose up -d"
 ```
+
+Service-to-image mapping (use this to decide what to rebuild):
+
+| Docker service | Image       | Rebuilds when these packages change |
+| -------------- | ----------- | ----------------------------------- |
+| `core`         | `epds-core` | `shared/`, `pds-core/`              |
+| `auth`         | `epds-auth` | `shared/`, `auth-service/`          |
+| `demo`         | `epds-demo` | `shared/`, `demo/`                  |
+| `caddy`        | (upstream)  | Only `Caddyfile` — no build needed  |
 
 Container names: `epds-core` (PDS, port 3000), `epds-auth` (auth service, port 3001),
 and `epds-demo` (demo frontend, port 3002).
