@@ -173,8 +173,10 @@ import { AuthServiceContext } from './context.js'
   `randomBytes(32).toString('hex')`) — passing `undefined` skips
   `registerAccount()` and leaves the `account` table empty, breaking
   `upsertDeviceAccount()` FK constraints.
-- Auth service must use `PDS_INTERNAL_URL=http://core:3000` in Docker to reach
-  PDS over the internal network.
+- Auth service must use `PDS_INTERNAL_URL` to reach pds-core over the internal
+  network (Docker: `http://core:3000`, Railway: `http://<service>.railway.internal:3000`).
+  Without it, internal API calls (par-login-hint, account-by-email) fall back to
+  the public URL which is unreachable from containers (no hairpin NAT).
 - Caddy's on-demand TLS `ask` URL and reverse proxy upstreams must use the
   Docker Compose service name (`core`, `auth`) — if you rename services, update
   `Caddyfile` defaults too or Caddy will refuse all TLS connections.

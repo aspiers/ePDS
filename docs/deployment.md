@@ -115,6 +115,10 @@ grep -v '^\s*#' packages/auth-service/.env | grep -v '^\s*$'
 grep -v '^\s*#' packages/demo/.env | grep -v '^\s*$'
 ```
 
+**Important**: Set `PDS_INTERNAL_URL` on the auth-service to the pds-core
+Railway internal URL (e.g. `http://pds-core.railway.internal:3000`). Without
+this, internal API calls from auth-service to pds-core will fail.
+
 Alternatively, use the Railway CLI:
 
 ```bash
