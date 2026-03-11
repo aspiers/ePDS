@@ -119,27 +119,28 @@ describe('Recovery flow: auth_flow creation for request_uri threading', () => {
   })
 })
 
-describe('Recovery flow: OTP pattern (8 digits)', () => {
-  it('OTP sent by better-auth is 8 digits (configured in emailOTP plugin)', () => {
+describe('Recovery flow: OTP pattern', () => {
+  it('OTP sent by better-auth matches configured length', () => {
     // Verify the configured OTP length matches what users expect
-    const OTP_LENGTH = 8
+    const OTP_LENGTH = parseInt(process.env.OTP_LENGTH ?? '8', 10)
     const pattern = new RegExp(`^[0-9]{${OTP_LENGTH}}$`)
 
-    // Simulate an 8-digit OTP
-    const otp = '12345678'
+    // Simulate an OTP of the configured length
+    const otp = '1'.repeat(OTP_LENGTH)
     expect(pattern.test(otp)).toBe(true)
 
-    // 6 digits should not match (old format)
-    expect(pattern.test('123456')).toBe(false)
+    // A shorter OTP should not match
+    expect(pattern.test('1'.repeat(OTP_LENGTH - 1))).toBe(false)
   })
 
-  it('OTP entry form uses maxlength=8 and pattern [0-9]{8}', () => {
+  it('OTP entry form uses configured maxlength and pattern', () => {
     // This is a documentation test confirming the UI constraints
-    // match the better-auth configuration (otpLength: 8)
-    const maxlength = 8
-    const pattern = '[0-9]{8}'
-    expect(maxlength).toBe(8)
-    expect(pattern).toContain('8')
+    // match the better-auth configuration (otpLength: OTP_LENGTH)
+    const OTP_LENGTH = parseInt(process.env.OTP_LENGTH ?? '8', 10)
+    const maxlength = OTP_LENGTH
+    const pattern = `[0-9]{${OTP_LENGTH}}`
+    expect(maxlength).toBe(OTP_LENGTH)
+    expect(pattern).toContain(String(OTP_LENGTH))
   })
 })
 

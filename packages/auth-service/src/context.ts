@@ -21,6 +21,7 @@ export interface AuthServiceConfig {
     fromName: string
   }
   dbLocation: string
+  otpLength: number
 }
 
 const logger = createLogger('auth-service')

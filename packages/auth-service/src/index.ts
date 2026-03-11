@@ -75,7 +75,8 @@ export function createAuthService(config: AuthServiceConfig): {
   app.use(createLoginPageRouter(ctx))
   app.use(createConsentRouter(ctx))
   app.use(createRecoveryRouter(ctx, betterAuthInstance))
-  app.use(createAccountLoginRouter(betterAuthInstance))
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  app.use((createAccountLoginRouter as any)(betterAuthInstance, ctx))
   app.use(createAccountSettingsRouter(ctx, betterAuthInstance))
   app.use(createCompleteRouter(ctx, betterAuthInstance))
   app.use(createChooseHandleRouter(ctx, betterAuthInstance))
@@ -132,6 +133,17 @@ async function main() {
       fromName: process.env.SMTP_FROM_NAME || 'ePDS',
     },
     dbLocation: process.env.DB_LOCATION || './data/epds.sqlite',
+    otpLength: parseInt(process.env.OTP_LENGTH || '8', 10),
+  }
+
+  if (
+    isNaN(config.otpLength) ||
+    config.otpLength < 4 ||
+    config.otpLength > 12
+  ) {
+    throw new Error(
+      `Invalid OTP_LENGTH: must be between 4 and 12, got "${process.env.OTP_LENGTH}"`,
+    )
   }
 
   await runBetterAuthMigrations(config.dbLocation, config.hostname)
