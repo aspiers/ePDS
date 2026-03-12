@@ -25,8 +25,8 @@ const logger = createLogger('auth:choose-handle')
 
 const AUTH_FLOW_COOKIE = 'epds_auth_flow'
 
-/** Regex for valid handle local parts: 3-20 chars, lowercase alphanumeric + hyphens, no leading/trailing hyphen */
-export const HANDLE_REGEX = /^[a-z0-9][a-z0-9-]{1,18}[a-z0-9]$/
+/** Regex for valid handle local parts: 5-20 chars, lowercase alphanumeric + hyphens, no leading/trailing hyphen */
+export const HANDLE_REGEX = /^[a-z0-9][a-z0-9-]{3,18}[a-z0-9]$/
 
 export function createChooseHandleRouter(
   ctx: AuthServiceContext,
@@ -181,6 +181,19 @@ export function createChooseHandleRouter(
 
     const { flowId, flow, email } = result
 
+    // Guard: if PDS account already exists, bounce back to /auth/complete
+    // (mirrors the same check in the GET handler — prevents signing a
+    // new_account callback for an existing user who somehow reaches this POST)
+    const did = await getDidByEmail(email, pdsUrl, internalSecret)
+    if (did) {
+      logger.info(
+        { email },
+        'Existing user reached POST choose-handle — redirecting to /auth/complete',
+      )
+      res.redirect(303, '/auth/complete')
+      return
+    }
+
     // Re-ping the PAR request to ensure it hasn't expired while the user was
     // on the handle picker page. Without this, a user who took >5 min would
     // get "This request has expired" inside epds-callback after account creation.
@@ -223,7 +236,7 @@ export function createChooseHandleRouter(
         .send(
           renderChooseHandlePage(
             handleDomain,
-            'Invalid handle format. Use 3-20 lowercase letters, numbers, or hyphens.',
+            'Invalid handle format. Use 5-20 lowercase letters, numbers, or hyphens.',
             res.locals.csrfToken,
           ),
         )
@@ -437,6 +450,7 @@ function renderChooseHandlePage(
             autocomplete="off"
             autocapitalize="none"
             spellcheck="false"
+            minlength="5"
             maxlength="20"
           >
           <span class="handle-suffix">.${escapeHtml(handleDomain)}</span>
@@ -449,7 +463,7 @@ function renderChooseHandlePage(
 
   <script>
     (function() {
-      var HANDLE_REGEX = /^[a-z0-9][a-z0-9-]{1,18}[a-z0-9]$/;
+      var HANDLE_REGEX = /^[a-z0-9][a-z0-9-]{3,18}[a-z0-9]$/;
 
       var input = document.getElementById('handle-input');
       var statusEl = document.getElementById('handle-status');
@@ -535,7 +549,7 @@ function renderChooseHandlePage(
         }
 
         if (!HANDLE_REGEX.test(raw)) {
-          setStatus('3\u201320 characters, letters, numbers, or hyphens. Cannot start or end with a hyphen.', 'format-error');
+          setStatus('5\u201320 characters, letters, numbers, or hyphens. Cannot start or end with a hyphen.', 'format-error');
           updateSubmit(); // formatValid=false → button disabled
           return;
         }

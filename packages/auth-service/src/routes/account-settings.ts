@@ -263,7 +263,7 @@ export function createAccountSettingsRouter(
         ? handle
         : handle + '.' + handleDomain
       const localPart = fullHandle.replace('.' + handleDomain, '')
-      if (!/^[a-z0-9]([a-z0-9-]{1,18}[a-z0-9])?$/.test(localPart)) {
+      if (!/^[a-z0-9][a-z0-9-]{3,18}[a-z0-9]$/.test(localPart)) {
         res.redirect(303, '/account?error=invalid_handle')
         return
       }
@@ -478,7 +478,7 @@ function renderSettingsPage(opts: {
       <p class="info">Your handle is your public username on the AT Protocol network.</p>
       <form method="POST" action="/account/handle" class="inline-form">
         <input type="hidden" name="csrf" value="${escapeHtml(opts.csrfToken)}">
-        <input type="text" name="handle" placeholder="yourname" required pattern="[a-z0-9][a-z0-9-]{1,18}[a-z0-9]" title="3-20 lowercase letters, numbers, or hyphens">
+        <input type="text" name="handle" placeholder="yourname" required pattern="[a-z0-9][a-z0-9-]{3,18}[a-z0-9]" title="5-20 lowercase letters, numbers, or hyphens">
         <span class="handle-suffix">.${escapeHtml(opts.handleDomain)}</span>
         <button type="submit" class="btn-primary-sm">Update</button>
       </form>

@@ -126,7 +126,9 @@ export function createCompleteRouter(
     }
 
     // Step 5c: Record client login before redirecting (no consent needed, existing user)
-    ctx.db.recordClientLogin(email, clientId || 'better-auth')
+    if (clientId) {
+      ctx.db.recordClientLogin(email, clientId)
+    }
 
     // Cleanup: remove auth_flow row and cookie
     ctx.db.deleteAuthFlow(flowId)
