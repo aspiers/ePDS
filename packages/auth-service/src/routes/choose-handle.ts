@@ -17,16 +17,18 @@
  */
 import { Router, type Request, type Response } from 'express'
 import type { AuthServiceContext } from '../context.js'
-import { createLogger, escapeHtml, signCallback } from '@certified-app/shared'
+import {
+  createLogger,
+  escapeHtml,
+  signCallback,
+  validateLocalPart,
+} from '@certified-app/shared'
 import { fromNodeHeaders } from 'better-auth/node'
 import { getDidByEmail } from '../lib/get-did-by-email.js'
 
 const logger = createLogger('auth:choose-handle')
 
 const AUTH_FLOW_COOKIE = 'epds_auth_flow'
-
-/** Regex for valid handle local parts: 5-20 chars, lowercase alphanumeric + hyphens, no leading/trailing hyphen */
-export const HANDLE_REGEX = /^[a-z0-9][a-z0-9-]{3,18}[a-z0-9]$/
 
 export function createChooseHandleRouter(
   ctx: AuthServiceContext,
@@ -226,10 +228,11 @@ export function createChooseHandleRouter(
     }
 
     // Step 1: Read and normalise the local part
-    const rawHandle = ((req.body.handle as string) || '').trim().toLowerCase()
+    const rawHandle = ((req.body.handle as string) || '').trim()
 
-    // Step 2: Validate format
-    if (!HANDLE_REGEX.test(rawHandle)) {
+    // Step 2: Validate format and normalise via atproto spec + product constraints
+    const normalizedLocal = validateLocalPart(rawHandle, handleDomain)
+    if (normalizedLocal === null) {
       logger.debug({ rawHandle }, 'Invalid handle format on POST choose-handle')
       res
         .type('html')
@@ -244,7 +247,7 @@ export function createChooseHandleRouter(
     }
 
     // Step 3: Construct full handle and check availability via PDS internal API
-    const fullHandle = `${rawHandle}.${handleDomain}`
+    const fullHandle = `${normalizedLocal}.${handleDomain}`
     let handleAvailable: boolean
     try {
       const checkRes = await fetch(
@@ -308,7 +311,7 @@ export function createChooseHandleRouter(
       email,
       approved: '1',
       new_account: '1',
-      handle: rawHandle,
+      handle: normalizedLocal,
     }
     const { sig, ts } = signCallback(
       callbackParams,
@@ -347,15 +350,15 @@ export function createChooseHandleRouter(
       return
     }
 
-    // Read and validate the local part
-    const localPart = ((req.query.handle as string) || '').trim().toLowerCase()
-
-    if (!HANDLE_REGEX.test(localPart)) {
+    // Read, validate and normalise the local part
+    const rawLocalPart = ((req.query.handle as string) || '').trim()
+    const normalizedLocal = validateLocalPart(rawLocalPart, handleDomain)
+    if (normalizedLocal === null) {
       res.json({ error: 'invalid_format' })
       return
     }
 
-    const fullHandle = `${localPart}.${handleDomain}`
+    const fullHandle = `${normalizedLocal}.${handleDomain}`
 
     try {
       const checkRes = await fetch(
@@ -463,8 +466,6 @@ function renderChooseHandlePage(
 
   <script>
     (function() {
-      var HANDLE_REGEX = /^[a-z0-9][a-z0-9-]{3,18}[a-z0-9]$/;
-
       var input = document.getElementById('handle-input');
       var statusEl = document.getElementById('handle-status');
       var submitBtn = document.getElementById('submit-btn');
@@ -473,10 +474,8 @@ function renderChooseHandlePage(
       var debounceTimer = null;
       var currentAbort = null;
 
-      // formatValid: true only when the current input passes the regex.
       // isAvailable: null = unknown, true = confirmed available, false = confirmed taken.
-      // submitBtn is disabled when format is invalid OR handle is confirmed taken.
-      var formatValid = false;
+      // submitBtn is disabled only when handle is confirmed taken or unavailable.
       var isAvailable = null;
 
       function setStatus(text, cls) {
@@ -485,7 +484,7 @@ function renderChooseHandlePage(
       }
 
       function updateSubmit() {
-        submitBtn.disabled = !formatValid || isAvailable === false;
+        submitBtn.disabled = isAvailable === false;
       }
       updateSubmit();
 
@@ -503,7 +502,8 @@ function renderChooseHandlePage(
           .then(function(data) {
             currentAbort = null;
             if (data.error === 'invalid_format') {
-              setStatus('Invalid format.', 'format-error');
+              isAvailable = false;
+              setStatus('5\u201320 characters, letters, numbers, or hyphens. Cannot start or end with a hyphen.', 'format-error');
             } else if (data.error) {
               // Service error: unknown state — don't block the button, show a hint
               isAvailable = null;
@@ -528,7 +528,7 @@ function renderChooseHandlePage(
       }
 
       input.addEventListener('input', function() {
-        // Normalise: lowercase, strip invalid chars
+        // Normalise: lowercase, strip invalid chars as you type
         var raw = this.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
         if (this.value !== raw) {
           var pos = this.selectionStart;
@@ -537,7 +537,6 @@ function renderChooseHandlePage(
         }
 
         // Reset state unconditionally on every keystroke
-        formatValid = false;
         isAvailable = null;
         clearTimeout(debounceTimer);
         if (currentAbort) { currentAbort.abort(); currentAbort = null; }
@@ -548,16 +547,8 @@ function renderChooseHandlePage(
           return;
         }
 
-        if (!HANDLE_REGEX.test(raw)) {
-          setStatus('5\u201320 characters, letters, numbers, or hyphens. Cannot start or end with a hyphen.', 'format-error');
-          updateSubmit(); // formatValid=false → button disabled
-          return;
-        }
-
-        // Valid format — button enabled while we wait for the availability check
-        formatValid = true;
+        // Let the server validate format — kick off debounced availability check
         updateSubmit();
-
         debounceTimer = setTimeout(function() {
           checkAvailability(raw);
         }, 500);

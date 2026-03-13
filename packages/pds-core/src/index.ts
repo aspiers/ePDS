@@ -25,6 +25,7 @@ import {
   createLogger,
   verifyCallback,
   escapeHtml,
+  validateLocalPart,
 } from '@certified-app/shared'
 
 const logger = createLogger('pds-core')
@@ -123,7 +124,7 @@ async function main() {
     // Defense in depth: validate the local part format before use.
     // (auth-service already validated, but we re-check at the trust boundary)
     if (chosenHandleLocal) {
-      if (!/^[a-z0-9][a-z0-9-]{3,18}[a-z0-9]$/.test(chosenHandleLocal)) {
+      if (validateLocalPart(chosenHandleLocal, handleDomain) === null) {
         logger.error(
           { handle: chosenHandleLocal },
           'invalid handle local part format in epds-callback',
