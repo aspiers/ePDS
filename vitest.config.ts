@@ -17,10 +17,10 @@ export default defineConfig({
       exclude: ['packages/*/src/__tests__/**', '**/*.test.ts', '**/*.d.ts'],
       // Baseline thresholds — ratchet these up as coverage improves
       thresholds: {
-        statements: 20,
-        branches: 13,
-        functions: 34,
-        lines: 20,
+        statements: 29,
+        branches: 22,
+        functions: 46,
+        lines: 29,
       },
     },
   },

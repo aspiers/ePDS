@@ -47,6 +47,35 @@ pnpm vitest run packages/shared
 Tests live in `packages/<name>/src/__tests__/`. There is no per-package test
 script — all tests are run from the root via vitest.
 
+### Writing Tests
+
+Before designing or writing new tests, read
+[`docs/design/testing-gaps.md`](docs/design/testing-gaps.md). It documents:
+
+- Current coverage per package/area and known hard-to-test zones.
+- Which areas are unit-testable vs. require integration/e2e tests.
+- Recommended strategies for covering route handlers, pds-core, and
+  better-auth wiring.
+- Remaining low-hanging fruit for coverage improvement.
+
+Follow these guidelines when adding tests:
+
+- **Prefer unit tests for pure logic** — crypto, validation, DB operations,
+  middleware. Use mock req/res objects (see `csrf.test.ts`, `rate-limit.test.ts`).
+- **Use `globalThis.fetch` mocking** for code that calls external services
+  (see `client-metadata.test.ts`, `email-template.test.ts`). Return
+  `Promise.resolve(...)` instead of `async () => ...` to avoid
+  `@typescript-eslint/require-await` lint errors.
+- **Use in-memory SQLite** for DB tests — create a temp file in
+  `os.tmpdir()`, clean up in `afterEach` (see `db.test.ts`).
+- **Do not test route handlers with unit tests** — they are integration-level
+  glue. Cover them via `supertest` integration tests or e2e tests instead.
+- **Keep `testing-gaps.md` up to date** — when you add tests that close a
+  documented gap, or discover new gaps, update the coverage summary table
+  and relevant sections.
+- **Ratchet thresholds** — after improving coverage, bump the thresholds in
+  `vitest.config.ts` so coverage cannot regress.
+
 ## Docker
 
 ```bash
