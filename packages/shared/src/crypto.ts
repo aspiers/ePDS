@@ -52,14 +52,16 @@ export interface CallbackParams {
   email: string
   approved: string
   new_account: string
+  handle?: string // only set for new account creation with chosen handle
 }
 
 /**
  * Sign the epds-callback redirect parameters with HMAC-SHA256.
  * Returns the hex signature and the Unix timestamp (seconds) used.
  *
- * Payload: request_uri, email, approved, new_account, and ts joined by newlines.
+ * Payload: request_uri, email, approved, new_account, handle (empty string when absent), and ts joined by newlines.
  * A timestamp is included so signatures expire (see verifyCallback).
+ * handle uses empty string as sentinel when absent so existing flows still produce valid signatures.
  */
 export function signCallback(
   params: CallbackParams,
@@ -71,6 +73,7 @@ export function signCallback(
     params.email,
     params.approved,
     params.new_account,
+    params.handle ?? '', // empty string when absent
     ts,
   ].join('\n')
   const sig = crypto.createHmac('sha256', secret).update(payload).digest('hex')
@@ -102,6 +105,7 @@ export function verifyCallback(
     params.email,
     params.approved,
     params.new_account,
+    params.handle ?? '', // empty string when absent — matches signCallback sentinel
     ts,
   ].join('\n')
   const expected = crypto
@@ -110,12 +114,15 @@ export function verifyCallback(
     .digest('hex')
 
   // Both are hex-encoded HMAC-SHA256 (always 64 chars / 32 bytes).
-  // Guard against wrong-length input to keep timingSafeEqual happy.
-  if (sig.length !== expected.length) return false
-  return crypto.timingSafeEqual(
+  // Normalize and validate sig format before decoding to prevent Buffer.from
+  // truncation on non-hex input, which would cause timingSafeEqual to throw.
+  const normalizedSig = sig.toLowerCase()
+  if (!/^[0-9a-f]{64}$/.test(normalizedSig)) return false
+  const isValid = crypto.timingSafeEqual(
     Buffer.from(expected, 'hex'),
-    Buffer.from(sig, 'hex'),
+    Buffer.from(normalizedSig, 'hex'),
   )
+  return isValid
 }
 
 /**

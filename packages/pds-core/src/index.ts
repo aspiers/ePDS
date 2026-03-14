@@ -19,10 +19,13 @@ dotenv.config()
 import type * as http from 'node:http'
 import { randomBytes, timingSafeEqual, createHash } from 'node:crypto'
 import { PDS, envToCfg, envToSecrets, readEnv } from '@atproto/pds'
+import { HandleUnavailableError } from '@atproto/oauth-provider'
 import {
   generateRandomHandle,
   createLogger,
   verifyCallback,
+  escapeHtml,
+  validateLocalPart,
 } from '@certified-app/shared'
 
 const logger = createLogger('pds-core')
@@ -84,12 +87,14 @@ async function main() {
 
     const approvedStr = req.query.approved as string
     const newAccountStr = req.query.new_account as string
+    const handleParam = req.query.handle as string | undefined
     const signatureValid = verifyCallback(
       {
         request_uri: requestUri,
         email,
         approved: approvedStr,
         new_account: newAccountStr,
+        handle: handleParam,
       },
       ts,
       sig,
@@ -106,6 +111,27 @@ async function main() {
         res.status(403).json({ error: 'Invalid callback signature' })
       }
       return
+    }
+
+    // Extract handle local part from verified callback params (tamper-proof — covered by HMAC).
+    // The callback now carries only the local part (e.g. 'alice'); we append our own
+    // trusted handleDomain here so there is no possibility of domain mismatch.
+    const chosenHandleLocal = handleParam
+    const chosenHandle = chosenHandleLocal
+      ? `${chosenHandleLocal}.${handleDomain}`
+      : undefined
+
+    // Defense in depth: validate the local part format before use.
+    // (auth-service already validated, but we re-check at the trust boundary)
+    if (chosenHandleLocal) {
+      if (validateLocalPart(chosenHandleLocal, handleDomain) === null) {
+        logger.error(
+          { handle: chosenHandleLocal },
+          'invalid handle local part format in epds-callback',
+        )
+        res.status(400).send('Invalid handle format')
+        return
+      }
     }
 
     if (!provider) {
@@ -147,18 +173,85 @@ async function main() {
         // Existing account
         const accountData = await provider.accountManager.getAccount(did)
         account = accountData.account
+      } else if (chosenHandle) {
+        // User chose a handle — pre-check existence before attempting createAccount.
+        // This avoids treating non-collision errors (datastore failures, invite-code
+        // misconfiguration, etc.) as handle collisions.
+        const existingHandle =
+          await pds.ctx.accountManager.getAccount(chosenHandle)
+        if (existingHandle) {
+          logger.warn(
+            { handle: chosenHandle },
+            'chosen handle already taken (pre-check)',
+          )
+          res.redirect(
+            303,
+            `https://${authHostname}/auth/choose-handle?error=handle_taken`,
+          )
+          return
+        }
+
+        // Handle is free — attempt account creation. Any error here is NOT a
+        // collision (we just confirmed the handle is available), so log as error
+        // and return 500 rather than silently redirecting to handle_taken.
+        try {
+          account = await provider.accountManager.createAccount(
+            deviceId,
+            deviceMetadata,
+            {
+              locale: 'en',
+              handle: chosenHandle,
+              email,
+              // Use a random unguessable password so the PDS creates a proper account
+              // row (registerAccount requires a password). The password is never
+              // returned or stored anywhere accessible, so the account is effectively
+              // passwordless — login is only possible via the magic OTP flow.
+              password: randomBytes(32).toString('hex'),
+              // Invite code is required when PDS_INVITE_REQUIRED is true (the default).
+              // EPDS_INVITE_CODE should be a high-useCount code generated via the admin API.
+              inviteCode: process.env.EPDS_INVITE_CODE,
+            },
+          )
+          did = account.sub
+          logger.info(
+            { did, email, handle: chosenHandle },
+            'Created account with chosen handle',
+          )
+        } catch (createErr: unknown) {
+          if (createErr instanceof HandleUnavailableError) {
+            // Reserved handle slipped past the pre-check (pre-check only tests DB existence,
+            // not the reserved-subdomain list). Redirect back to handle picker.
+            logger.warn(
+              { handle: chosenHandle },
+              'Handle unavailable during createAccount (reserved or taken)',
+            )
+            res.redirect(
+              303,
+              `https://${authHostname}/auth/choose-handle?error=handle_taken`,
+            )
+            return
+          }
+          logger.error(
+            { err: createErr, handle: chosenHandle },
+            'createAccount failed',
+          )
+          res
+            .status(500)
+            .type('html')
+            .send(renderError('Account creation failed. Please try again.'))
+          return
+        }
       } else {
-        // New account - create via the OAuthProvider's sign-up mechanism
-        // Retry up to 3 times in case of handle collision
+        // No handle provided — fall back to random handle generation (backward compat)
         for (let attempt = 0; attempt < 3; attempt++) {
           try {
-            const handle = generateRandomHandle(handleDomain)
+            const randomHandle = generateRandomHandle(handleDomain)
             account = await provider.accountManager.createAccount(
               deviceId,
               deviceMetadata,
               {
                 locale: 'en',
-                handle,
+                handle: randomHandle,
                 email,
                 // Use a random unguessable password so the PDS creates a proper account
                 // row (registerAccount requires a password). The password is never
@@ -171,7 +264,7 @@ async function main() {
               },
             )
             did = account.sub
-            logger.info({ did, email, handle }, 'Created account')
+            logger.info({ did, email, handle: randomHandle }, 'Created account')
             break
           } catch (createErr: unknown) {
             if (attempt === 2) throw createErr
@@ -391,6 +484,62 @@ async function main() {
     }
   })
 
+  // Protected internal endpoint for auth service to check if a handle is already
+  // taken on this PDS. Used by the handle availability checker during signup.
+  // Returns only { exists: boolean } — never returns email, DID, or other account data.
+  pds.app.get('/_internal/check-handle', async (req, res) => {
+    if (!verifyInternalSecret(req.headers['x-internal-secret'])) {
+      res.status(403).json({ error: 'forbidden' })
+      return
+    }
+    const handle = ((req.query.handle as string) || '').trim()
+    if (!handle) {
+      res.status(400).json({ error: 'missing handle param' })
+      return
+    }
+    try {
+      const account = await pds.ctx.accountManager.getAccount(handle)
+      res.json({ exists: !!account })
+    } catch (err) {
+      logger.error({ err, handle }, 'Failed to check handle availability')
+      res.status(503).json({ error: 'handle_check_failed' })
+    }
+  })
+
+  // Protected internal endpoint for auth service to reset the inactivity timer
+  // on a pending PAR request_uri. Called when the user loads the handle selection
+  // page so the request doesn't expire while they are choosing a handle.
+  // atproto's AUTHORIZATION_INACTIVITY_TIMEOUT is 5 minutes — without this ping,
+  // users who take >5 min on the handle page would get "This request has expired"
+  // inside epds-callback after account creation, leaving the auth flow broken.
+  pds.app.get('/_internal/ping-request', async (req, res) => {
+    if (!verifyInternalSecret(req.headers['x-internal-secret'])) {
+      res.status(401).json({ error: 'Unauthorized' })
+      return
+    }
+    const requestUri = ((req.query.request_uri as string) || '').trim()
+    if (!requestUri) {
+      res.status(400).json({ error: 'Missing request_uri' })
+      return
+    }
+    if (!provider) {
+      res.status(503).json({ error: 'OAuth provider not available' })
+      return
+    }
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- @atproto/oauth-provider requestManager not exported
+      await (provider.requestManager as any).get(requestUri)
+      res.json({ ok: true })
+    } catch (err) {
+      // Request expired or not found — not a server error, just report it
+      logger.debug(
+        { err, requestUri },
+        'ping-request: request_uri expired or not found',
+      )
+      res.status(404).json({ error: 'request_expired' })
+    }
+  })
+
   // Protected internal endpoint for auth service to retrieve the login_hint
   // stored in a PAR request. Third-party apps put the handle/DID in the PAR body
   // but don't duplicate it on the authorization redirect URL. The auth service
@@ -494,6 +643,14 @@ async function checkHandleRoute(
       .status(500)
       .json({ error: 'InternalServerError', message: 'Internal Server Error' })
   }
+}
+
+function renderError(message: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Error</title></head>
+<body><p style="color:red;padding:20px">${escapeHtml(message)}</p></body>
+</html>`
 }
 
 main().catch((err: unknown) => {

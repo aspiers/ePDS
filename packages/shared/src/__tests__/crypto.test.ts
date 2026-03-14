@@ -133,6 +133,7 @@ describe('signCallback / verifyCallback', () => {
       params.email,
       params.approved,
       params.new_account,
+      '', // handle sentinel (absent)
       staleTs,
     ].join('\n')
     const { createHmac } = await import('node:crypto')
@@ -147,6 +148,7 @@ describe('signCallback / verifyCallback', () => {
       params.email,
       params.approved,
       params.new_account,
+      '', // handle sentinel (absent)
       futureTs,
     ].join('\n')
     const { createHmac } = await import('node:crypto')
@@ -162,5 +164,69 @@ describe('signCallback / verifyCallback', () => {
   it('rejects wrong-length sig', () => {
     const { ts } = signCallback(params, secret)
     expect(verifyCallback(params, ts, 'tooshort', secret)).toBe(false)
+  })
+})
+
+describe('signCallback / verifyCallback with handle', () => {
+  it('signs and verifies callback with handle param', () => {
+    const secret = 'test-secret'
+    const params: CallbackParams = {
+      request_uri: 'urn:ietf:params:oauth:request_uri:test',
+      email: 'alice@example.com',
+      approved: '1',
+      new_account: '1',
+      handle: 'alice.pds.example.com',
+    }
+    const { sig, ts } = signCallback(params, secret)
+    expect(verifyCallback(params, ts, sig, secret)).toBe(true)
+  })
+
+  it('signs and verifies callback WITHOUT handle', () => {
+    const secret = 'test-secret'
+    const params: CallbackParams = {
+      request_uri: 'urn:ietf:params:oauth:request_uri:test',
+      email: 'alice@example.com',
+      approved: '1',
+      new_account: '1',
+    }
+    const { sig, ts } = signCallback(params, secret)
+    expect(verifyCallback(params, ts, sig, secret)).toBe(true)
+  })
+
+  it('produces different signatures with vs without handle', () => {
+    const secret = 'test-secret'
+    const baseParams: CallbackParams = {
+      request_uri: 'urn:ietf:params:oauth:request_uri:test',
+      email: 'alice@example.com',
+      approved: '1',
+      new_account: '1',
+    }
+    // Sign without handle, then verify that adding a handle breaks the signature.
+    // This proves handle is included in the HMAC payload without relying on two
+    // independent signCallback() calls that could produce different ts values.
+    const { sig, ts } = signCallback(baseParams, secret)
+    const withHandle: CallbackParams = {
+      ...baseParams,
+      handle: 'alice.pds.example.com',
+    }
+    expect(verifyCallback(withHandle, ts, sig, secret)).toBe(false)
+  })
+
+  it('rejects tampered handle', () => {
+    const secret = 'test-secret'
+    const params: CallbackParams = {
+      request_uri: 'urn:ietf:params:oauth:request_uri:test',
+      email: 'alice@example.com',
+      approved: '1',
+      new_account: '1',
+      handle: 'alice.pds.example.com',
+    }
+    const { sig, ts } = signCallback(params, secret)
+    // Tamper: verify with a different handle than what was signed
+    const tamperedParams: CallbackParams = {
+      ...params,
+      handle: 'evil.pds.example.com',
+    }
+    expect(verifyCallback(tamperedParams, ts, sig, secret)).toBe(false)
   })
 })
