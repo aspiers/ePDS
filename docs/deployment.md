@@ -131,8 +131,10 @@ railway link -s '@certified-app/auth-service'
 railway variables set PDS_INTERNAL_URL=http://<private-domain>:3000
 ```
 
-Without a correct `PDS_INTERNAL_URL`, the auth service will **crash at startup**
-with `PDS_INTERNAL_URL and EPDS_INTERNAL_SECRET must be set`.
+Without `PDS_INTERNAL_URL` set, the auth service will **crash at startup**
+reporting which of `PDS_INTERNAL_URL` and `EPDS_INTERNAL_SECRET` is missing.
+If `PDS_INTERNAL_URL` is set but incorrect, startup will succeed but
+auth→PDS calls will fail at runtime.
 
 Alternatively, use the Railway CLI:
 

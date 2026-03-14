@@ -25,6 +25,7 @@ import {
 } from '@certified-app/shared'
 import { fromNodeHeaders } from 'better-auth/node'
 import { getDidByEmail } from '../lib/get-did-by-email.js'
+import { requireInternalEnv } from '../lib/require-internal-env.js'
 
 const logger = createLogger('auth:choose-handle')
 
@@ -37,11 +38,7 @@ export function createChooseHandleRouter(
 ): Router {
   const router = Router()
 
-  const pdsUrl = process.env.PDS_INTERNAL_URL
-  const internalSecret = process.env.EPDS_INTERNAL_SECRET
-  if (!pdsUrl || !internalSecret) {
-    throw new Error('PDS_INTERNAL_URL and EPDS_INTERNAL_SECRET must be set')
-  }
+  const { pdsUrl, internalSecret } = requireInternalEnv()
   const handleDomain = ctx.config.pdsHostname
 
   /**

@@ -23,6 +23,7 @@ import type { AuthServiceContext } from '../context.js'
 import { createLogger, signCallback } from '@certified-app/shared'
 import { fromNodeHeaders } from 'better-auth/node'
 import { getDidByEmail } from '../lib/get-did-by-email.js'
+import { requireInternalEnv } from '../lib/require-internal-env.js'
 
 const logger = createLogger('auth:complete')
 
@@ -35,11 +36,7 @@ export function createCompleteRouter(
 ): Router {
   const router = Router()
 
-  const pdsUrl = process.env.PDS_INTERNAL_URL
-  const internalSecret = process.env.EPDS_INTERNAL_SECRET
-  if (!pdsUrl || !internalSecret) {
-    throw new Error('PDS_INTERNAL_URL and EPDS_INTERNAL_SECRET must be set')
-  }
+  const { pdsUrl, internalSecret } = requireInternalEnv()
 
   router.get('/auth/complete', async (req: Request, res: Response) => {
     // Step 1: Get flow_id from cookie
