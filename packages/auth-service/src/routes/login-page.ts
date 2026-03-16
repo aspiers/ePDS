@@ -28,7 +28,12 @@ import {
   resolveClientName,
   type ClientMetadata,
 } from '../lib/client-metadata.js'
-import { escapeHtml, createLogger } from '@certified-app/shared'
+import {
+  escapeHtml,
+  createLogger,
+  VALID_HANDLE_MODES,
+  type HandleMode,
+} from '@certified-app/shared'
 import { socialProviders } from '../better-auth.js'
 import { buildOtpInputProps } from '../otp-input.js'
 import {
@@ -49,6 +54,12 @@ export function createLoginPageRouter(ctx: AuthServiceContext): Router {
     const requestUri = req.query.request_uri as string | undefined
     const clientId = req.query.client_id as string | undefined
     const loginHint = req.query.login_hint as string | undefined
+    const rawHandleMode = req.query.epds_handle_mode as string | undefined
+    const handleMode: HandleMode | null =
+      rawHandleMode !== undefined &&
+      (VALID_HANDLE_MODES as readonly string[]).includes(rawHandleMode)
+        ? (rawHandleMode as HandleMode)
+        : null
 
     if (!requestUri) {
       res
@@ -94,6 +105,7 @@ export function createLoginPageRouter(ctx: AuthServiceContext): Router {
           flowId,
           requestUri,
           clientId: clientId ?? null,
+          handleMode,
           expiresAt: Date.now() + AUTH_FLOW_TTL_MS,
         })
       } catch (err) {
