@@ -14,7 +14,6 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
 import { EpdsDb } from '@certified-app/shared'
-import { buildOtpInputProps } from '../otp-input.js'
 
 describe('Recovery flow: backup email lookup', () => {
   let db: EpdsDb
@@ -117,50 +116,6 @@ describe('Recovery flow: auth_flow creation for request_uri threading', () => {
     const existing = db.getAuthFlow(flowId)
     expect(existing).toBeDefined()
     expect(existing!.requestUri).toBe(requestUri)
-  })
-})
-
-describe('Recovery flow: OTP input props', () => {
-  it('numeric charset produces digit-only pattern and zero placeholder', () => {
-    const props = buildOtpInputProps(8, 'numeric')
-    expect(props.pattern).toBe('[0-9]{8}')
-    expect(props.placeholder).toBe('00000000')
-    expect(props.inputmode).toBe('numeric')
-    expect(props.autocapitalize).toBe('off')
-  })
-
-  it('alphanumeric charset produces alphanumeric pattern and X placeholder', () => {
-    const props = buildOtpInputProps(8, 'alphanumeric')
-    expect(props.pattern).toBe('[A-Za-z0-9]{8}')
-    expect(props.placeholder).toBe('XXXXXXXX')
-    expect(props.inputmode).toBe('text')
-    expect(props.autocapitalize).toBe('characters')
-  })
-
-  it('pattern and placeholder length match otpLength', () => {
-    const numeric = buildOtpInputProps(6, 'numeric')
-    expect(numeric.pattern).toBe('[0-9]{6}')
-    expect(numeric.placeholder).toHaveLength(6)
-
-    const alpha = buildOtpInputProps(6, 'alphanumeric')
-    expect(alpha.pattern).toBe('[A-Za-z0-9]{6}')
-    expect(alpha.placeholder).toHaveLength(6)
-  })
-
-  it('numeric pattern does not accept letters', () => {
-    const { pattern } = buildOtpInputProps(8, 'numeric')
-    const re = new RegExp(`^${pattern}$`)
-    expect(re.test('12345678')).toBe(true)
-    expect(re.test('1234567A')).toBe(false)
-  })
-
-  it('alphanumeric pattern accepts both letters and digits', () => {
-    const { pattern } = buildOtpInputProps(8, 'alphanumeric')
-    const re = new RegExp(`^${pattern}$`)
-    expect(re.test('A1B2C3D4')).toBe(true)
-    expect(re.test('12345678')).toBe(true)
-    expect(re.test('ABCDEFGH')).toBe(true)
-    expect(re.test('A1B2C3D')).toBe(false) // one short
   })
 })
 

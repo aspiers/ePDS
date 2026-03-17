@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { EmailSender } from '../email/sender.js'
+import { formatOtpHtmlGrouped } from '@certified-app/shared'
 import type { EmailConfig } from '@certified-app/shared'
 
 const originalFetch = globalThis.fetch
@@ -173,7 +174,7 @@ describe('EmailSender', () => {
       // Default template uses pdsName in subject, not client name
       expect(mailOpts.subject).toContain('Test PDS')
       // Default template contains the sign-in code block
-      expect(mailOpts.html).toContain('44444444')
+      expect(mailOpts.html).toContain(formatOtpHtmlGrouped('44444444'))
       // Should NOT contain the broken template content
       expect(mailOpts.html).not.toContain('broken-template')
       // From name should be the default config, not the client name

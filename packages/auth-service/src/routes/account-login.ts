@@ -18,12 +18,12 @@ import { escapeHtml, maskEmail, createLogger } from '@certified-app/shared'
 import { fromNodeHeaders } from 'better-auth/node'
 import type { AuthServiceContext } from '../context.js'
 import { buildOtpInputProps } from '../otp-input.js'
+import type { BetterAuthInstance } from '../better-auth.js'
 
 const logger = createLogger('auth:account-login')
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- better-auth instance has no exported type
 export function createAccountLoginRouter(
-  auth: any,
+  auth: BetterAuthInstance,
   ctx: AuthServiceContext,
 ): Router {
   const router = Router()
@@ -34,7 +34,7 @@ export function createAccountLoginRouter(
       const session = await auth.api.getSession({
         headers: fromNodeHeaders(req.headers),
       })
-      if (session?.user?.email) {
+      if (session?.user.email) {
         res.redirect(303, '/account')
         return
       }
@@ -100,27 +100,19 @@ export function createAccountLoginRouter(
     try {
       // Call better-auth's sign-in endpoint — it sets the session cookie and returns JSON
       const response = await auth.api.signInEmailOTP({
-        body: { email, otp },
+        body: { email, otp: otp.toUpperCase() },
         // We don't pass headers here since we want better-auth to create a new session
         // The session cookie will be set on the response
         asResponse: true,
       })
 
-      if (
-        response instanceof Response ||
-        (response && typeof response.headers?.get === 'function')
-      ) {
-        // Forward the Set-Cookie header from better-auth's response
-        const setCookie = response.headers.get('set-cookie')
-        if (setCookie) {
-          res.setHeader('Set-Cookie', setCookie)
-        }
-        res.redirect(303, '/account')
-        return
+      // Forward the Set-Cookie header from better-auth's response
+      const setCookie = response.headers.get('set-cookie')
+      if (setCookie) {
+        res.setHeader('Set-Cookie', setCookie)
       }
-
-      // If not a Response object, assume success
       res.redirect(303, '/account')
+      return
     } catch (err: unknown) {
       logger.warn({ err, email }, 'OTP verification failed')
       const errMsg =
@@ -178,7 +170,6 @@ function renderOtpForm(opts: {
   error?: string
 }): string {
   const maskedEmail = maskEmail(opts.email)
-  const article = /^[aeiou]/i.test(opts.otpLength.toString()) ? 'an' : 'a'
   const inputProps = buildOtpInputProps(opts.otpLength, opts.otpCharset)
 
   return `<!DOCTYPE html>
@@ -192,13 +183,15 @@ function renderOtpForm(opts: {
 <body>
   <div class="container">
     <h1>Enter your code</h1>
-    <p class="subtitle">We sent ${article} ${opts.otpLength}-${opts.otpCharset === 'alphanumeric' ? 'character' : 'digit'} code to <strong>${escapeHtml(maskedEmail)}</strong></p>
+    <p id="otp-help" class="subtitle">We sent a ${opts.otpLength}-${opts.otpCharset === 'alphanumeric' ? 'character' : 'digit'} code to <strong>${escapeHtml(maskedEmail)}</strong></p>
     ${opts.error ? '<p class="error">' + escapeHtml(opts.error) + '</p>' : ''}
     <form method="POST" action="/account/verify-otp">
       <input type="hidden" name="csrf" value="${escapeHtml(opts.csrfToken)}">
       <input type="hidden" name="email" value="${escapeHtml(opts.email)}">
       <div class="field">
         <input type="text" id="otp" name="otp" required autofocus
+               aria-label="One-time code"
+               aria-describedby="otp-help"
                maxlength="${opts.otpLength}"
                pattern="${inputProps.pattern}"
                inputmode="${inputProps.inputmode}"

@@ -30,6 +30,7 @@ import {
 } from '../lib/client-metadata.js'
 import { escapeHtml, createLogger } from '@certified-app/shared'
 import { socialProviders } from '../better-auth.js'
+import { buildOtpInputProps } from '../otp-input.js'
 import {
   resolveLoginHint,
   fetchParLoginHint,
@@ -216,6 +217,8 @@ function renderLoginPage(opts: {
     ? `<img src="${escapeHtml(b.logo_uri)}" alt="${escapeHtml(appName)}" class="client-logo">`
     : ''
 
+  const inputProps = buildOtpInputProps(opts.otpLength, opts.otpCharset)
+
   const hasGoogle = 'google' in socialProviders
   const hasGithub = 'github' in socialProviders
   const hasSocialProviders = hasGoogle || hasGithub
@@ -323,11 +326,12 @@ function renderLoginPage(opts: {
       <form id="form-verify-otp">
         <input type="hidden" id="otp-email" name="email" value="${escapeHtml(opts.loginHint)}">
         <div class="field">
+          <label for="code">One-time code</label>
           <input type="text" id="code" name="code" required
-                 maxlength="${opts.otpLength}" pattern="${opts.otpCharset === 'alphanumeric' ? `[A-Za-z0-9]{${opts.otpLength}}` : `[0-9]{${opts.otpLength}}`}" inputmode="${opts.otpCharset === 'alphanumeric' ? 'text' : 'numeric'}"
-                 autocomplete="one-time-code" placeholder="${opts.otpCharset === 'alphanumeric' ? 'X'.repeat(opts.otpLength) : '0'.repeat(opts.otpLength)}" class="otp-input"
-                 autocapitalize="${opts.otpCharset === 'alphanumeric' ? 'characters' : 'off'}"
-                 oninput="this.value=this.value.replace(/[\s-]/g,'')"
+                 maxlength="${opts.otpLength}" pattern="${inputProps.pattern}" inputmode="${inputProps.inputmode}"
+                 autocomplete="one-time-code" placeholder="${inputProps.placeholder}" class="otp-input"
+                 autocapitalize="${inputProps.autocapitalize}"
+                  oninput="this.value=this.value.replace(/[\\s-]/g,'')"
                  style="letter-spacing: ${Math.max(2, Math.round(32 / opts.otpLength))}px">
         </div>
         <button type="submit" class="btn-primary">Verify</button>
@@ -366,13 +370,11 @@ function renderLoginPage(opts: {
 
       var otpLength = ${opts.otpLength};
       var otpCharset = ${JSON.stringify(opts.otpCharset)};
-      var article = /^[aeiou]/i.test(otpLength.toString()) ? 'an' : 'a';
-
       function showOtpStep(email) {
         currentEmail = email;
         otpEmailInput.value = email;
         var masked = email.replace(/(.{2})[^@]*(@.*)/, '$1***$2');
-        otpSubtitle.textContent = 'We sent ' + article + ' ' + otpLength + (otpCharset === 'alphanumeric' ? '-character' : '-digit') + ' code to ' + masked;
+        otpSubtitle.textContent = 'We sent a ' + otpLength + (otpCharset === 'alphanumeric' ? '-character' : '-digit') + ' code to ' + masked;
         stepEmail.classList.add('hidden');
         stepOtp.classList.add('active');
         recoveryLink.style.display = 'block';
@@ -504,7 +506,7 @@ function renderLoginPage(opts: {
             if (result.error) {
               showError(result.error);
             } else {
-              otpSubtitle.textContent = 'We sent ' + article + ' ' + otpLength + (otpCharset === 'alphanumeric' ? '-character' : '-digit') + ' code to ' + masked;
+              otpSubtitle.textContent = 'We sent a ' + otpLength + (otpCharset === 'alphanumeric' ? '-character' : '-digit') + ' code to ' + masked;
             }
           });
         }

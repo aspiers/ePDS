@@ -156,7 +156,7 @@ export function createRecoveryRouter(
     try {
       // Verify OTP via better-auth — this creates/updates a session
       const response = await auth.api.signInEmailOTP({
-        body: { email, otp: code },
+        body: { email, otp: code.toUpperCase() },
         asResponse: true,
       })
 
@@ -246,7 +246,6 @@ function renderOtpForm(opts: {
 }): string {
   const maskedEmail = maskEmail(opts.email)
   const encodedUri = encodeURIComponent(opts.requestUri)
-  const article = /^[aeiou]/i.test(opts.otpLength.toString()) ? 'an' : 'a'
   const inputProps = buildOtpInputProps(opts.otpLength, opts.otpCharset)
 
   return `<!DOCTYPE html>
@@ -260,7 +259,7 @@ function renderOtpForm(opts: {
 <body>
   <div class="container">
     <h1>Enter recovery code</h1>
-    <p class="subtitle">If a backup email matches, we sent ${article} ${opts.otpLength}-${opts.otpCharset === 'alphanumeric' ? 'character' : 'digit'} code to <strong>${escapeHtml(maskedEmail)}</strong></p>
+    <p id="code-help" class="subtitle">If a backup email matches, we sent a ${opts.otpLength}-${opts.otpCharset === 'alphanumeric' ? 'character' : 'digit'} code to <strong>${escapeHtml(maskedEmail)}</strong></p>
     ${opts.error ? '<p class="error">' + escapeHtml(opts.error) + '</p>' : ''}
     <form method="POST" action="/auth/recover/verify">
       <input type="hidden" name="csrf" value="${escapeHtml(opts.csrfToken)}">
@@ -268,6 +267,8 @@ function renderOtpForm(opts: {
       <input type="hidden" name="email" value="${escapeHtml(opts.email)}">
       <div class="field">
         <input type="text" id="code" name="code" required autofocus
+               aria-label="One-time code"
+               aria-describedby="code-help"
                maxlength="${opts.otpLength}"
                pattern="${inputProps.pattern}"
                inputmode="${inputProps.inputmode}"
@@ -275,7 +276,7 @@ function renderOtpForm(opts: {
                autocapitalize="${inputProps.autocapitalize}"
                placeholder="${inputProps.placeholder}"
                class="otp-input"
-               oninput="this.value=this.value.replace(/[\s-]/g,'')"
+                oninput="this.value=this.value.replace(/[\\s-]/g,'')"
                style="letter-spacing: ${Math.max(2, Math.round(32 / opts.otpLength))}px">
       </div>
       <button type="submit" class="btn-primary">Verify</button>

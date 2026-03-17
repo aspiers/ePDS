@@ -137,7 +137,7 @@ async function main() {
       fromName: process.env.SMTP_FROM_NAME || 'ePDS',
     },
     dbLocation: process.env.DB_LOCATION || './data/epds.sqlite',
-    otpLength: parseInt(process.env.OTP_LENGTH || '8', 10),
+    otpLength: Number(process.env.OTP_LENGTH ?? '8'),
     otpCharset: (process.env.OTP_CHARSET || 'numeric') as
       | 'numeric'
       | 'alphanumeric',

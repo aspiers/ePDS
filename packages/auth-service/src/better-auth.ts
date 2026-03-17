@@ -9,15 +9,17 @@
  * The instance is mounted at /api/auth/* alongside the existing custom routes.
  * No existing behavior is changed — this is a foundation-only step.
  */
-import Database from 'better-sqlite3'
+import type { EpdsDb } from '@certified-app/shared'
+import { createLogger } from '@certified-app/shared'
 import { betterAuth } from 'better-auth'
+import { generateRandomString } from 'better-auth/crypto'
 import { getMigrations } from 'better-auth/db'
 import { emailOTP } from 'better-auth/plugins'
-import { createLogger } from '@certified-app/shared'
-import type { EpdsDb } from '@certified-app/shared'
+import Database from 'better-sqlite3'
 import type { EmailSender } from './email/sender.js'
-import { generateRandomString } from 'better-auth/crypto'
 import { getDidByEmail } from './lib/get-did-by-email.js'
+
+export type BetterAuthInstance = ReturnType<typeof createBetterAuth>
 
 const logger = createLogger('auth:better-auth')
 
@@ -118,13 +120,12 @@ export async function runBetterAuthMigrations(
   betterAuthDb.close()
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function createBetterAuth(
   emailSender: EmailSender,
   db: EpdsDb,
   otpLength: number,
   otpCharset: 'numeric' | 'alphanumeric' = 'numeric',
-): any {
+) {
   const dbLocation = process.env.DB_LOCATION ?? './data/epds.sqlite'
   const authHostname = process.env.AUTH_HOSTNAME ?? 'auth.localhost'
   const pdsName = process.env.SMTP_FROM_NAME ?? 'ePDS'
@@ -148,7 +149,11 @@ export function createBetterAuth(
     // Use AUTH_SESSION_SECRET so better-auth doesn't fall back to its
     // default secret (which throws in production).
     secret: process.env.AUTH_SESSION_SECRET,
-    database: betterAuthDb,
+    // TS4058: BetterSqlite3.Database leaks into the inferred return type when
+    // passed directly; casting to `any` breaks the inference chain so declaration
+    // emit succeeds without casting the entire createBetterAuth return value.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    database: betterAuthDb as any,
     baseURL: `https://${authHostname}`,
     basePath: '/api/auth',
 

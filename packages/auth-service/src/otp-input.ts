@@ -18,7 +18,7 @@ export function buildOtpInputProps(
 ): OtpInputProps {
   if (otpCharset === 'alphanumeric') {
     return {
-      pattern: `[A-Za-z0-9]{${otpLength}}`,
+      pattern: `[A-Z0-9]{${otpLength}}`,
       placeholder: 'X'.repeat(otpLength),
       inputmode: 'text',
       autocapitalize: 'characters',

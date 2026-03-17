@@ -196,7 +196,9 @@ import { AuthServiceContext } from './context.js'
 - All epds-callback redirects must be HMAC-SHA256 signed using
   `signCallback()` / `verifyCallback()` from `@certified-app/shared`.
 - Use `timingSafeEqual()` for all secret/token comparisons.
-- OTP codes: 8-digit, single-use, managed by better-auth.
+- OTP codes: configurable length (4–12, default 8, via `OTP_LENGTH`) and charset
+  (`numeric` or `alphanumeric`, default `numeric`, via `OTP_CHARSET`), single-use,
+  managed by better-auth. Expiry is hardcoded at 600 s with 5 allowed attempts.
 - Internal service-to-service calls use `x-internal-secret` header.
 
 ## Task Tracking
