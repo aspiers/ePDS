@@ -26,6 +26,7 @@ import {
 } from '@certified-app/shared'
 import { fromNodeHeaders } from 'better-auth/node'
 import { getDidByEmail } from '../lib/get-did-by-email.js'
+import { pingParRequest } from '../lib/ping-par-request.js'
 import { requireInternalEnv } from '../lib/require-internal-env.js'
 
 const logger = createLogger('auth:choose-handle')
@@ -145,27 +146,20 @@ export function createChooseHandleRouter(
     // user is on this page. atproto's AUTHORIZATION_INACTIVITY_TIMEOUT is 5 min
     // — without this ping, users who take >5 min to pick a handle would hit
     // "This request has expired" inside epds-callback after account creation.
-    try {
-      const pingRes = await fetch(
-        `${pdsUrl}/_internal/ping-request?request_uri=${encodeURIComponent(result.flow.requestUri)}`,
+    const ping = await pingParRequest(
+      result.flow.requestUri,
+      pdsUrl,
+      internalSecret,
+    )
+    if (!ping.ok) {
+      logger.warn(
         {
-          headers: { 'x-internal-secret': internalSecret },
-          signal: AbortSignal.timeout(3000),
+          status: ping.status,
+          err: ping.err,
+          requestUri: result.flow.requestUri,
         },
+        'Failed to extend request_uri on choose-handle',
       )
-      if (!pingRes.ok) {
-        logger.warn(
-          { status: pingRes.status, requestUri: result.flow.requestUri },
-          'Failed to extend request_uri on choose-handle',
-        )
-        res
-          .status(400)
-          .type('html')
-          .send(renderError('Session expired, please start over'))
-        return
-      }
-    } catch (err) {
-      logger.warn({ err }, 'Failed to ping request_uri on choose-handle')
       res
         .status(400)
         .type('html')
@@ -230,27 +224,12 @@ export function createChooseHandleRouter(
     // Re-ping the PAR request to ensure it hasn't expired while the user was
     // on the handle picker page. Without this, a user who took >5 min would
     // get "This request has expired" inside epds-callback after account creation.
-    try {
-      const pingRes = await fetch(
-        `${pdsUrl}/_internal/ping-request?request_uri=${encodeURIComponent(flow.requestUri)}`,
-        {
-          headers: { 'x-internal-secret': internalSecret },
-          signal: AbortSignal.timeout(3000),
-        },
+    const ping = await pingParRequest(flow.requestUri, pdsUrl, internalSecret)
+    if (!ping.ok) {
+      logger.warn(
+        { status: ping.status, err: ping.err, requestUri: flow.requestUri },
+        'Failed to extend request_uri on POST choose-handle',
       )
-      if (!pingRes.ok) {
-        logger.warn(
-          { status: pingRes.status, requestUri: flow.requestUri },
-          'Failed to extend request_uri on POST choose-handle',
-        )
-        res
-          .status(400)
-          .type('html')
-          .send(renderError('Session expired, please start over'))
-        return
-      }
-    } catch (err) {
-      logger.warn({ err }, 'Failed to ping request_uri on POST choose-handle')
       res
         .status(400)
         .type('html')

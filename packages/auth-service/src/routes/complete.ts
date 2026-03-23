@@ -24,6 +24,7 @@ import type { AuthServiceContext } from '../context.js'
 import { createLogger, signCallback } from '@certified-app/shared'
 import { fromNodeHeaders } from 'better-auth/node'
 import { getDidByEmail } from '../lib/get-did-by-email.js'
+import { pingParRequest } from '../lib/ping-par-request.js'
 import { requireInternalEnv } from '../lib/require-internal-env.js'
 
 const logger = createLogger('auth:complete')
@@ -103,6 +104,21 @@ export function createCompleteRouter(
       if (flow.handleMode === 'random') {
         // Step 5a (new user, random mode): Skip handle picker — let pds-core generate
         // a random handle via generateRandomHandle().
+
+        // Ping the PAR to reset the inactivity timer before redirecting.
+        // Non-fatal: if the ping fails we log and proceed with the original
+        // request_uri — pds-core will surface the expiry if it has occurred.
+        const ping = await pingParRequest(
+          flow.requestUri,
+          pdsUrl,
+          internalSecret,
+        )
+        if (!ping.ok) {
+          logger.warn(
+            { status: ping.status, err: ping.err, requestUri: flow.requestUri },
+            'PAR ping returned non-OK on random mode complete — proceeding anyway',
+          )
+        }
 
         /**  CONTRACT: `handle` is intentionally omitted from callbackParams here.
          *  Absent `handle` in the signed payload (serialised as '' by signCallback's
