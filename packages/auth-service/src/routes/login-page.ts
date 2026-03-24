@@ -28,7 +28,12 @@ import {
   resolveClientName,
   type ClientMetadata,
 } from '../lib/client-metadata.js'
-import { escapeHtml, createLogger } from '@certified-app/shared'
+import {
+  escapeHtml,
+  createLogger,
+  VALID_HANDLE_MODES,
+  type HandleMode,
+} from '@certified-app/shared'
 import { socialProviders } from '../better-auth.js'
 import { buildOtpInputProps } from '../otp-input.js'
 import {
@@ -42,6 +47,35 @@ const logger = createLogger('auth:login-page')
 const AUTH_FLOW_COOKIE = 'epds_auth_flow'
 const AUTH_FLOW_TTL_MS = 10 * 60 * 1000 // 10 minutes
 
+export async function safeResolveClientMetadata(
+  clientId: string | undefined,
+): Promise<ClientMetadata> {
+  if (!clientId) return {}
+  try {
+    return await resolveClientMetadata(clientId)
+  } catch (err) {
+    // Degrade gracefully: no branding, handleMode falls back to null. user can still continue
+    logger.error({ err, clientId }, 'Failed to resolve client metadata')
+    return {}
+  }
+}
+
+export function resolveHandleMode(
+  queryParam: string | undefined,
+  clientMeta: ClientMetadata,
+): HandleMode | null {
+  for (const raw of [
+    queryParam,
+    clientMeta.epds_handle_mode,
+    process.env.EPDS_DEFAULT_HANDLE_MODE,
+  ]) {
+    if (raw && (VALID_HANDLE_MODES as readonly string[]).includes(raw)) {
+      return raw as HandleMode
+    }
+  }
+  return null
+}
+
 export function createLoginPageRouter(ctx: AuthServiceContext): Router {
   const router = Router()
 
@@ -49,7 +83,6 @@ export function createLoginPageRouter(ctx: AuthServiceContext): Router {
     const requestUri = req.query.request_uri as string | undefined
     const clientId = req.query.client_id as string | undefined
     const loginHint = req.query.login_hint as string | undefined
-
     if (!requestUri) {
       res
         .status(400)
@@ -57,6 +90,12 @@ export function createLoginPageRouter(ctx: AuthServiceContext): Router {
         .send(renderError('Missing request_uri parameter'))
       return
     }
+
+    const clientMeta = await safeResolveClientMetadata(clientId)
+    const handleMode = resolveHandleMode(
+      req.query.epds_handle_mode as string | undefined,
+      clientMeta,
+    )
 
     logger.debug(
       {
@@ -94,6 +133,7 @@ export function createLoginPageRouter(ctx: AuthServiceContext): Router {
           flowId,
           requestUri,
           clientId: clientId ?? null,
+          handleMode,
           expiresAt: Date.now() + AUTH_FLOW_TTL_MS,
         })
       } catch (err) {
@@ -114,10 +154,6 @@ export function createLoginPageRouter(ctx: AuthServiceContext): Router {
       maxAge: AUTH_FLOW_TTL_MS,
     })
 
-    // Resolve client branding
-    const clientMeta: ClientMetadata = clientId
-      ? await resolveClientMetadata(clientId)
-      : {}
     const clientName =
       clientMeta.client_name ??
       (clientId ? await resolveClientName(clientId) : 'an application')
