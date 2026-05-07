@@ -72,6 +72,40 @@ function verifyPayload(signed: string): string | null {
 
 const OAUTH_COOKIE = 'oauth_state'
 
+/**
+ * Lifetime of the `oauth_state` cookie, in seconds.
+ *
+ * The cookie carries everything the callback needs to finish the
+ * token exchange (state, code verifier, token endpoint, issuer). It
+ * must outlive a realistic sign-in: the user requests an email code,
+ * fetches it from their inbox, and only then submits — a wait that
+ * can run to several minutes. 600s (10 min) was shorter than that
+ * and shorter than the code's own validity, so a slow-but-correct
+ * sign-in could fail at the last step with nothing to complete
+ * against. One hour matches the auth service's `auth_flow` row TTL:
+ * as long as the auth service can still recover the flow, the demo
+ * can too.
+ */
+export const OAUTH_COOKIE_MAX_AGE_SECONDS = 60 * 60
+
+/**
+ * Error code the OAuth callback landing page should show when the
+ * flow can't be completed. Split out as a pure function so the
+ * mapping is unit-testable without standing up a Next request.
+ *
+ * `session_expired` is reserved for the case where the sign-in
+ * itself succeeded but *our* `oauth_state` cookie has gone away
+ * (expired, cleared, or a wait longer than its lifetime) — there is
+ * nothing to exchange the code against, but the user did nothing
+ * wrong, so an honest "took too long" beats a generic "auth failed".
+ * Every other failure maps to `auth_failed`.
+ */
+export function resolveCallbackErrorCode(reason: {
+  oauthCookiePresent: boolean
+}): 'session_expired' | 'auth_failed' {
+  return reason.oauthCookiePresent ? 'auth_failed' : 'session_expired'
+}
+
 export function createOAuthSessionCookie(data: OAuthSession): {
   name: string
   value: string

@@ -5,7 +5,9 @@ import {
   createUserSessionCookie,
   getUserSessionFromCookie,
   getSessionFromCookie,
+  resolveCallbackErrorCode,
   OAUTH_COOKIE,
+  OAUTH_COOKIE_MAX_AGE_SECONDS,
   SESSION_COOKIE,
 } from '../lib/session'
 import type { OAuthSession, UserSession } from '../lib/session'
@@ -90,5 +92,29 @@ describe('getSessionFromCookie', () => {
     const cookie = createUserSessionCookie(sampleUserSession)
     const store = cookieStore(cookie.name, cookie.value)
     expect(getSessionFromCookie(store)).toEqual(sampleUserSession)
+  })
+})
+
+describe('OAUTH_COOKIE_MAX_AGE_SECONDS', () => {
+  it('is one hour, long enough to outlast a realistic email-code wait', () => {
+    expect(OAUTH_COOKIE_MAX_AGE_SECONDS).toBe(60 * 60)
+  })
+
+  it('outlasts the previous 10-minute value that could expire mid-flow', () => {
+    expect(OAUTH_COOKIE_MAX_AGE_SECONDS).toBeGreaterThan(600)
+  })
+})
+
+describe('resolveCallbackErrorCode', () => {
+  it('maps a missing oauth_state cookie to session_expired', () => {
+    expect(resolveCallbackErrorCode({ oauthCookiePresent: false })).toBe(
+      'session_expired',
+    )
+  })
+
+  it('maps a present cookie (any other failure) to auth_failed', () => {
+    expect(resolveCallbackErrorCode({ oauthCookiePresent: true })).toBe(
+      'auth_failed',
+    )
   })
 })
