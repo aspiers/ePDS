@@ -1,12 +1,12 @@
 ---
 name: writing-changesets
-description: Create changeset files for user-facing or operator-facing changes to ePDS. Use when adding features, changing configuration, altering OAuth flows, or any change a downstream consumer needs to adapt to.
+description: Create changeset files for changes to ePDS that affect end users, client app developers, or operators. Use when adding features, changing configuration, altering OAuth flows, or any change a downstream consumer needs to adapt to.
 ---
 
 # Writing Changesets
 
-Create a changeset file to document user-facing or operator-facing
-changes for release.
+Create a changeset file to document changes for release that affect
+end users, client app developers, or operators.
 
 ## When to Use
 
