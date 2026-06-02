@@ -43,11 +43,14 @@ const defaultTagExclusions = [
   ...hookTagExclusions,
 ]
 
-const shared = {
-  paths: ['features/**/*.feature'],
-  import: ['e2e/step-definitions/**/*.ts', 'e2e/support/**/*.ts'],
-  strict: true,
-}
+const parsedCucumberRetry = Number.parseInt(
+  process.env.CUCUMBER_RETRY ?? '0',
+  10,
+)
+const cucumberRetry =
+  Number.isFinite(parsedCucumberRetry) && parsedCucumberRetry >= 0
+    ? parsedCucumberRetry
+    : 0
 
 const parsedDefaultParallel = Number.parseInt(
   process.env.E2E_PARALLEL ?? '3',
@@ -57,6 +60,13 @@ const defaultParallel =
   Number.isFinite(parsedDefaultParallel) && parsedDefaultParallel >= 0
     ? parsedDefaultParallel
     : 3
+
+const shared = {
+  paths: ['features/**/*.feature'],
+  import: ['e2e/step-definitions/**/*.ts', 'e2e/support/**/*.ts'],
+  retry: cucumberRetry,
+  strict: true,
+}
 
 // Cucumber supports the `default: () => ({...})` form to declare multiple
 // profiles including names that aren't valid JS identifiers (e.g. hyphenated).
