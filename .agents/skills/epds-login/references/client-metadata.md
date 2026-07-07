@@ -53,7 +53,7 @@ mutually exclusive — the PDS rejects metadata that has both.
   "client_id": "https://yourapp.example.com/client-metadata.json",
   "client_name": "Your App Name",
   "redirect_uris": ["https://yourapp.example.com/api/oauth/callback"],
-  "scope": "atproto include:org.hypercerts.authWrite include:org.hyperboards.authWrite include:app.certified.authWrite",
+  "scope": "atproto include:org.hypercerts.authWrite include:app.certified.authWrite",
   "grant_types": ["authorization_code", "refresh_token"],
   "response_types": ["code"],
   "token_endpoint_auth_method": "private_key_jwt",
@@ -70,7 +70,7 @@ mutually exclusive — the PDS rejects metadata that has both.
   "client_id": "https://yourapp.example.com/client-metadata.json",
   "client_name": "Your App Name",
   "redirect_uris": ["https://yourapp.example.com/api/oauth/callback"],
-  "scope": "atproto include:org.hypercerts.authWrite include:org.hyperboards.authWrite include:app.certified.authWrite",
+  "scope": "atproto include:org.hypercerts.authWrite include:app.certified.authWrite",
   "grant_types": ["authorization_code", "refresh_token"],
   "response_types": ["code"],
   "token_endpoint_auth_method": "private_key_jwt",
@@ -96,7 +96,6 @@ host — useful for simpler setups. See
 [Publishing the JWKS document](#publishing-the-jwks-document) below for
 key generation and serving details.
 
-
 ## All supported fields
 
 | Field                             | Required    | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
@@ -104,7 +103,7 @@ key generation and serving details.
 | `client_id`                       | Yes         | Must match the URL where this file is hosted                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `client_name`                     | Yes         | Shown on the login page and in OTP emails                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `redirect_uris`                   | Yes         | Array of allowed callback URLs after login                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `scope`                           | Yes         | Space-separated list. `atproto` is required and must come first; add the scopes/permission sets your app needs (the examples use `include:org.hypercerts.authWrite include:org.hyperboards.authWrite include:app.certified.authWrite`). Avoid the legacy `transition:generic` catch-all — see the `atproto-oauth` skill.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `scope`                           | Yes         | Space-separated list. `atproto` is required and must come first; add the scopes/permission sets your app needs (the examples use `include:org.hypercerts.authWrite include:app.certified.authWrite`). Avoid the legacy `transition:generic` catch-all — see the `atproto-oauth` skill.                                                                                                                                                                                                                                                                                                                                                             |
 | `grant_types`                     | Yes         | Always `["authorization_code", "refresh_token"]`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `response_types`                  | Yes         | Always `["code"]`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `token_endpoint_auth_method`      | Yes         | `"private_key_jwt"` (recommended) or `"none"` — see above                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -267,7 +266,7 @@ above for the trade-offs.
   "client_id": "https://yourapp.example.com/client-metadata.json",
   "client_name": "Your App Name",
   "redirect_uris": ["https://yourapp.example.com/api/oauth/callback"],
-  "scope": "atproto include:org.hypercerts.authWrite include:org.hyperboards.authWrite include:app.certified.authWrite",
+  "scope": "atproto include:org.hypercerts.authWrite include:app.certified.authWrite",
   "grant_types": ["authorization_code", "refresh_token"],
   "response_types": ["code"],
   "token_endpoint_auth_method": "none",

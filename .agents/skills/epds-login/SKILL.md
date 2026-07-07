@@ -62,7 +62,7 @@ are mutually exclusive:
   "client_id": "https://yourapp.example.com/client-metadata.json",
   "client_name": "Your App",
   "redirect_uris": ["https://yourapp.example.com/api/oauth/callback"],
-  "scope": "atproto include:org.hypercerts.authWrite include:org.hyperboards.authWrite include:app.certified.authWrite",
+  "scope": "atproto include:org.hypercerts.authWrite include:app.certified.authWrite",
   "grant_types": ["authorization_code", "refresh_token"],
   "response_types": ["code"],
   "token_endpoint_auth_method": "private_key_jwt",
@@ -74,9 +74,9 @@ are mutually exclusive:
 
 > **On the `scope` value:** `atproto` is mandatory and must be listed first; the
 > remaining entries request only the permissions your app needs. The examples here
-> reference three hypercerts specific permission sets via the `include:` prefix —
-> `include:org.hypercerts.authWrite`, `include:org.hyperboards.authWrite`, and
-> `include:app.certified.authWrite`; substitute the permission sets your own app defines. A
+> reference two hypercerts specific permission sets via the `include:` prefix —
+> `include:org.hypercerts.authWrite` and `include:app.certified.authWrite`;
+> substitute the permission sets your own app defines. A
 > permission set that bundles `rpc:` service calls also needs an
 > `?aud=<service-did>` parameter (with `#` percent-encoded as `%23`); these are
 > write-only sets, so no `aud` is required. Avoid the legacy `transition:generic`
@@ -101,7 +101,8 @@ const client = new NodeOAuthClient({
     client_id: 'https://yourapp.example.com/client-metadata.json',
     client_name: 'Your App',
     redirect_uris: ['https://yourapp.example.com/api/oauth/callback'],
-    scope: 'atproto include:org.hypercerts.authWrite include:org.hyperboards.authWrite include:app.certified.authWrite',
+    scope:
+      'atproto include:org.hypercerts.authWrite include:app.certified.authWrite',
     grant_types: ['authorization_code', 'refresh_token'],
     response_types: ['code'],
     token_endpoint_auth_method: 'private_key_jwt',
