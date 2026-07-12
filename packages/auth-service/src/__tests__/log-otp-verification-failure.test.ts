@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, vi } from 'vitest'
 import { APIError } from 'better-auth/api'
-import { logOtpVerificationFailure } from '../better-auth.js'
+import { isOtpVerifyPath, logOtpVerificationFailure } from '../better-auth.js'
 
 const PATH = '/sign-in/email-otp'
 
@@ -144,5 +144,24 @@ describe('logOtpVerificationFailure', () => {
     logOtpVerificationFailure(undefined, 'a@x.com', PATH, log)
 
     expect(log.warn).not.toHaveBeenCalled()
+  })
+})
+
+describe('isOtpVerifyPath', () => {
+  it('matches the OTP verification endpoints', () => {
+    expect(isOtpVerifyPath('/sign-in/email-otp')).toBe(true)
+    expect(isOtpVerifyPath('/email-otp/check-verification-otp')).toBe(true)
+    expect(isOtpVerifyPath('/email-otp/verify-email')).toBe(true)
+    expect(isOtpVerifyPath('/email-otp/reset-password')).toBe(true)
+  })
+
+  it('excludes the OTP send endpoints (a send failure is not a verification failure)', () => {
+    expect(isOtpVerifyPath('/email-otp/send-verification-otp')).toBe(false)
+    expect(isOtpVerifyPath('/email-otp/request-password-reset')).toBe(false)
+  })
+
+  it('excludes unrelated endpoints', () => {
+    expect(isOtpVerifyPath('/sign-in/social')).toBe(false)
+    expect(isOtpVerifyPath('/callback/google')).toBe(false)
   })
 })

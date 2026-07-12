@@ -110,9 +110,23 @@ export function logOtpVerificationFailure(
   )
 }
 
-/** OTP verify endpoints whose 4xx failures we log with the user's email. */
-function isOtpVerifyPath(path: string): boolean {
-  return path === '/sign-in/email-otp' || path.startsWith('/email-otp/')
+/**
+ * OTP *verification* endpoints whose 4xx failures we log with the user's email.
+ *
+ * This is an explicit allowlist rather than a `/email-otp/*` prefix match,
+ * because that prefix also covers the OTP *send* endpoints
+ * (`/email-otp/send-verification-otp`, `/email-otp/request-password-reset`),
+ * whose failures are not verification failures and would be mislabelled.
+ */
+const OTP_VERIFY_PATHS = new Set([
+  '/sign-in/email-otp',
+  '/email-otp/check-verification-otp',
+  '/email-otp/verify-email',
+  '/email-otp/reset-password',
+])
+
+export function isOtpVerifyPath(path: string): boolean {
+  return OTP_VERIFY_PATHS.has(path)
 }
 
 const AUTH_FLOW_COOKIE = 'epds_auth_flow'
