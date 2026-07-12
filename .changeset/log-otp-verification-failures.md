@@ -6,7 +6,7 @@ Failed sign-in code entries now show up in the server logs, split by reason and 
 
 **Affects:** Operators
 
-**Operators:** the auth service now logs the sign-in code failures that the browser posts straight to `/api/auth/sign-in/email-otp`, which previously reached no log at all.
+**Operators:** these failures come from the browser posting straight to `/api/auth/sign-in/email-otp`, which the auth service mounts with no request logging, so until now they were invisible.
 
 - Each failure is logged under the `auth:better-auth` logger name (all levels are visible at the default `info` level, no `LOG_LEVEL` change needed). The log message is self-contained and distinct per reason, so you can tell the failures apart at a glance without inspecting a separate field:
   - `OTP verification failed: code expired` — logged at `info` (routine user error)
