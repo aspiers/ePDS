@@ -2,7 +2,7 @@
 'ePDS': patch
 ---
 
-Failed sign-in code attempts now appear in the server logs, split by reason and tagged with the account's email.
+Failed one-time code attempts now appear in the server logs, split by reason and tagged with the account's email.
 
 **Affects:** Operators
 
