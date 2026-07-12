@@ -78,7 +78,7 @@ describe('logOtpVerificationFailure', () => {
     )
   })
 
-  it('falls back to the generic message for an unmapped 4xx reason', () => {
+  it('falls back to the prefixed reason for an unmapped 4xx reason', () => {
     const log = makeLogger()
     logOtpVerificationFailure(
       new APIError('BAD_REQUEST', { message: 'Some other reason' }),
@@ -89,7 +89,7 @@ describe('logOtpVerificationFailure', () => {
 
     expect(log.warn).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'eve@example.com', statusCode: 400 }),
-      'OTP verification failed',
+      'OTP verification failed: Some other reason',
     )
   })
 
@@ -122,14 +122,24 @@ describe('logOtpVerificationFailure', () => {
 
   it('ignores 3xx redirects', () => {
     const log = makeLogger()
-    logOtpVerificationFailure(new APIError('FOUND'), 'alice@example.com', PATH, log)
+    logOtpVerificationFailure(
+      new APIError('FOUND'),
+      'alice@example.com',
+      PATH,
+      log,
+    )
 
     expect(log.warn).not.toHaveBeenCalled()
   })
 
   it('ignores non-APIError values (e.g. a successful response)', () => {
     const log = makeLogger()
-    logOtpVerificationFailure(new Error('some other failure'), 'a@x.com', PATH, log)
+    logOtpVerificationFailure(
+      new Error('some other failure'),
+      'a@x.com',
+      PATH,
+      log,
+    )
     logOtpVerificationFailure({ token: 'ok' }, 'a@x.com', PATH, log)
     logOtpVerificationFailure(undefined, 'a@x.com', PATH, log)
 

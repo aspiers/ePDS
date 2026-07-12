@@ -95,7 +95,10 @@ export function logOtpVerificationFailure(
   if (statusCode < 400 || statusCode >= 500) return
 
   const reason = error.body?.message ?? error.message
-  const message = OTP_FAILURE_MESSAGES[reason] ?? OTP_FAILURE_FALLBACK
+  // Unmapped reasons keep the shared "OTP verification failed:" prefix (so the
+  // whole class stays greppable) and append the raw reason for context.
+  const message =
+    OTP_FAILURE_MESSAGES[reason] ?? `${OTP_FAILURE_FALLBACK}: ${reason}`
 
   log.warn(
     {
@@ -255,17 +258,19 @@ export function createBetterAuth(
     // better-auth re-throws the APIError, so the HTTP response is unchanged.
     // See logOtpVerificationFailure above.
     hooks: {
-      // createAuthMiddleware's handler type requires a Promise return, so the
-      // callback must be async even though our logging is synchronous.
-      // eslint-disable-next-line @typescript-eslint/require-await
-      after: createAuthMiddleware(async (ctx) => {
-        if (!isOtpVerifyPath(ctx.path)) return
-        logOtpVerificationFailure(
-          ctx.context.returned,
-          ctx.body?.email,
-          ctx.path,
-          logger,
-        )
+      // createAuthMiddleware's handler type requires a Promise return. Our
+      // logging is synchronous, so the callback stays non-async and returns a
+      // resolved promise rather than suppressing the require-await lint.
+      after: createAuthMiddleware((ctx) => {
+        if (isOtpVerifyPath(ctx.path)) {
+          logOtpVerificationFailure(
+            ctx.context.returned,
+            ctx.body?.email,
+            ctx.path,
+            logger,
+          )
+        }
+        return Promise.resolve()
       }),
     },
 
