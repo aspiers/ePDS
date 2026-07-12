@@ -139,6 +139,7 @@ describe('OAuth login route (Flow 2)', () => {
 
   it('handles DPoP nonce retry (400 → dpop-nonce header → retry succeeds)', async () => {
     let callCount = 0
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     global.fetch = vi.fn().mockImplementation(() => {
       callCount++
       if (callCount === 1) {
@@ -170,6 +171,7 @@ describe('OAuth login route (Flow 2)', () => {
     // Should redirect successfully after retry
     expect(resp.status).toBe(307)
     expect(resp._url).toContain('request_uri=')
+    expect(errorSpy).not.toHaveBeenCalled()
   })
 
   it('session cookie round-trips the stored OAuth data', async () => {

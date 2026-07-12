@@ -211,12 +211,9 @@ export async function GET(request: Request) {
 
     if (!parRes.ok) {
       const parErrBody = await parRes.text()
-      console.error('[oauth/login] PAR failed:', parRes.status, parErrBody)
-
-      // Check for DPoP nonce requirement
       const dpopNonce = parRes.headers.get('dpop-nonce')
       if (dpopNonce) {
-        console.log('[oauth/login] Retrying with DPoP nonce')
+        console.log('[oauth/login] PAR requires DPoP nonce; retrying')
         const dpopProof2 = createDpopProof({
           privateKey,
           jwk: publicJwk,
@@ -269,6 +266,7 @@ export async function GET(request: Request) {
         return resp2
       }
 
+      console.error('[oauth/login] PAR failed:', parRes.status, parErrBody)
       return NextResponse.redirect(new URL('/?error=par_failed', baseUrl))
     }
 
