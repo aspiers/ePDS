@@ -13,9 +13,9 @@ import { isOtpVerifyPath, logOtpVerificationFailure } from '../better-auth.js'
 
 const PATH = '/sign-in/email-otp'
 
-/** Minimal stand-in for the pino logger — only `warn` is exercised. */
+/** Minimal stand-in for the pino logger — only `info` and `warn` are used. */
 function makeLogger() {
-  return { warn: vi.fn() } as unknown as Parameters<
+  return { info: vi.fn(), warn: vi.fn() } as unknown as Parameters<
     typeof logOtpVerificationFailure
   >[3]
 }
@@ -26,11 +26,12 @@ describe('logOtpVerificationFailure', () => {
     const error = new APIError('BAD_REQUEST', { message: 'OTP expired' })
     logOtpVerificationFailure(error, 'alice@example.com', PATH, log)
 
-    expect(log.warn).toHaveBeenCalledOnce()
-    expect(log.warn).toHaveBeenCalledWith(
+    expect(log.info).toHaveBeenCalledOnce()
+    expect(log.info).toHaveBeenCalledWith(
       { email: 'alice@example.com', statusCode: 400, path: PATH },
       'OTP verification failed: code expired',
     )
+    expect(log.warn).not.toHaveBeenCalled()
   })
 
   it('maps an invalid-OTP error, distinct from expiry', () => {
@@ -42,13 +43,13 @@ describe('logOtpVerificationFailure', () => {
       log,
     )
 
-    expect(log.warn).toHaveBeenCalledWith(
+    expect(log.info).toHaveBeenCalledWith(
       { email: 'bob@example.com', statusCode: 400, path: PATH },
       'OTP verification failed: invalid or unrecognized code',
     )
   })
 
-  it('maps a 403 too-many-attempts error', () => {
+  it('logs a 403 too-many-attempts error at warn (possible abuse signal)', () => {
     const log = makeLogger()
     logOtpVerificationFailure(
       new APIError('FORBIDDEN', { message: 'Too many attempts' }),
@@ -61,6 +62,7 @@ describe('logOtpVerificationFailure', () => {
       { email: 'carol@example.com', statusCode: 403, path: PATH },
       'OTP verification failed: too many attempts, code invalidated',
     )
+    expect(log.info).not.toHaveBeenCalled()
   })
 
   it('logs the broad-scope path verbatim in the path field', () => {
@@ -72,7 +74,7 @@ describe('logOtpVerificationFailure', () => {
       log,
     )
 
-    expect(log.warn).toHaveBeenCalledWith(
+    expect(log.info).toHaveBeenCalledWith(
       expect.objectContaining({ path: '/email-otp/reset-password' }),
       'OTP verification failed: invalid or unrecognized code',
     )
@@ -87,7 +89,7 @@ describe('logOtpVerificationFailure', () => {
       log,
     )
 
-    expect(log.warn).toHaveBeenCalledWith(
+    expect(log.info).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'eve@example.com', statusCode: 400 }),
       'OTP verification failed: Some other reason',
     )
@@ -102,7 +104,7 @@ describe('logOtpVerificationFailure', () => {
       log,
     )
 
-    expect(log.warn).toHaveBeenCalledWith(
+    expect(log.info).toHaveBeenCalledWith(
       { email: undefined, statusCode: 400, path: PATH },
       'OTP verification failed: invalid or unrecognized code',
     )
@@ -118,6 +120,7 @@ describe('logOtpVerificationFailure', () => {
     )
 
     expect(log.warn).not.toHaveBeenCalled()
+    expect(log.info).not.toHaveBeenCalled()
   })
 
   it('ignores 3xx redirects', () => {
@@ -130,6 +133,7 @@ describe('logOtpVerificationFailure', () => {
     )
 
     expect(log.warn).not.toHaveBeenCalled()
+    expect(log.info).not.toHaveBeenCalled()
   })
 
   it('ignores non-APIError values (e.g. a successful response)', () => {
@@ -144,6 +148,7 @@ describe('logOtpVerificationFailure', () => {
     logOtpVerificationFailure(undefined, 'a@x.com', PATH, log)
 
     expect(log.warn).not.toHaveBeenCalled()
+    expect(log.info).not.toHaveBeenCalled()
   })
 })
 

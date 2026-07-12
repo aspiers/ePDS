@@ -66,8 +66,10 @@ const OTP_FAILURE_FALLBACK = 'OTP verification failed'
  * verification failure better-auth throws a 4xx `APIError` whose message is the
  * exact reason — "OTP expired", "Invalid OTP" or "Too many attempts". These are
  * the only signal distinguishing a genuinely-late email (expired) from a user
- * retyping a stale code (invalid), so we log them at `warn` (visible at prod's
- * default `info` level) to make the split countable over time.
+ * retyping a stale code (invalid), so we log them to make the split countable
+ * over time. Expired / invalid codes are routine user error and log at `info`;
+ * a 403 (too many attempts) can signal brute-forcing and logs at `warn`. Both
+ * levels are visible at prod's default `info` level.
  *
  * Unlike better-auth's instance-wide `onAPIError` hook, this runs from an
  * `after` middleware that receives the per-request endpoint context, so the
@@ -100,7 +102,12 @@ export function logOtpVerificationFailure(
   const message =
     OTP_FAILURE_MESSAGES[reason] ?? `${OTP_FAILURE_FALLBACK}: ${reason}`
 
-  log.warn(
+  // Expired / invalid codes are routine user error, so they log at `info`.
+  // A 403 (too many attempts) is the one outcome that can signal brute-forcing
+  // rather than a fumble, so it warrants `warn`.
+  const level = statusCode === 403 ? 'warn' : 'info'
+
+  log[level](
     {
       email: typeof email === 'string' ? email : undefined,
       statusCode,
