@@ -79,10 +79,11 @@ const OAUTH_COOKIE = 'oauth_state'
  * token exchange (state, code verifier, token endpoint, issuer). It
  * must outlive a realistic sign-in: the user requests an email code,
  * fetches it from their inbox, and only then submits — a wait that
- * can run to several minutes. 600s (10 min) was shorter than that
- * and shorter than the code's own validity, so a slow-but-correct
- * sign-in could fail at the last step with nothing to complete
- * against. One hour matches the auth service's `auth_flow` row TTL:
+ * can run to several minutes. The old 600s (10 min) timer started
+ * when the OAuth flow began, before the OTP was issued, while the
+ * OTP's own 600s validity started only when it was sent. The cookie
+ * could therefore disappear while a late-issued code was still
+ * valid. One hour matches the auth service's `auth_flow` row TTL:
  * as long as the auth service can still recover the flow, the demo
  * can too.
  */

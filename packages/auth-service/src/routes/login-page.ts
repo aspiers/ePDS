@@ -811,7 +811,6 @@ export function renderLoginPage(opts: {
       document.addEventListener('visibilitychange', function() {
         if (document.visibilityState === 'visible' && heartbeatEnabled) {
           pingHeartbeat();
-          refreshResendVisibility();
         }
       });
 

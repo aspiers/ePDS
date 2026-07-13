@@ -54,15 +54,20 @@ export async function GET(request: NextRequest) {
     // we recorded when starting the OAuth flow. If it has gone away
     // (cookie expired by browser, user cleared cookies, very long
     // wait on the OTP form), there is nothing we can do to complete
-    // the token exchange — but we owe the user a useful error
-    // (`session_expired`) rather than a generic `auth_failed`, so
-    // the landing page can guide them to start over instead of
-    // looking like the sign-in itself just failed.
+    // the token exchange — but we owe the user a useful
+    // `session_expired` error. A cookie that is still present but
+    // fails signature or JSON validation remains an `auth_failed`
+    // error because it may have been tampered with.
     const cookieStore = await cookies()
+    const oauthCookiePresent = cookieStore.get(OAUTH_COOKIE) !== undefined
     const stateData = getOAuthSessionFromCookie(cookieStore)
     if (!stateData) {
-      console.error('[oauth/callback] Missing oauth_state cookie')
-      const errorCode = resolveCallbackErrorCode({ oauthCookiePresent: false })
+      console.error(
+        oauthCookiePresent
+          ? '[oauth/callback] Invalid oauth_state cookie'
+          : '[oauth/callback] Missing oauth_state cookie',
+      )
+      const errorCode = resolveCallbackErrorCode({ oauthCookiePresent })
       return NextResponse.redirect(new URL(`/?error=${errorCode}`, baseUrl))
     }
 
