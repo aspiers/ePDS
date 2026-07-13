@@ -836,6 +836,10 @@ export function renderLoginPage(opts: {
         if (backBtn) backBtn.disabled = true;
         var verifyBtn = document.querySelector('#form-verify-otp button[type=submit]');
         if (verifyBtn) verifyBtn.disabled = true;
+        var standaloneStartOverBtn = document.getElementById('btn-start-over');
+        if (standaloneStartOverBtn && standaloneStartOverBtn.parentNode) {
+          standaloneStartOverBtn.parentNode.removeChild(standaloneStartOverBtn);
+        }
         // Render the notice in the existing error banner so the
         // styling / position is consistent with other errors. The
         // copy is set via textContent (no HTML), the Start over
@@ -848,6 +852,7 @@ export function renderLoginPage(opts: {
         errorEl.appendChild(document.createElement('br'));
         var startOverBtn = document.createElement('button');
         startOverBtn.type = 'button';
+        startOverBtn.id = 'btn-start-over';
         startOverBtn.className = 'flash-action';
         startOverBtn.textContent = 'Start over';
         startOverBtn.addEventListener('click', function() {
@@ -876,7 +881,11 @@ export function renderLoginPage(opts: {
         // another one from the heartbeat's finally handler.
         if (flowAborted) {
           resendBtn.style.display = 'none';
-          if (startOverLink && startOverLink.parentNode) {
+          if (
+            startOverLink &&
+            startOverLink.className === 'btn-secondary' &&
+            startOverLink.parentNode
+          ) {
             startOverLink.parentNode.removeChild(startOverLink);
           }
           return;
