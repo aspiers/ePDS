@@ -129,6 +129,14 @@ export function getOAuthSessionFromCookie(cookieStore: {
   }
 }
 
+/**
+ * Read and classify the callback's OAuth session cookie.
+ *
+ * Missing cookies represent an expired browser session, while cookies that
+ * are present but fail signature or JSON validation represent an auth failure.
+ * Keeping the classification here ensures the callback's log and user-facing
+ * error stay consistent.
+ */
 export function readOAuthSessionCookie(cookieStore: {
   get(name: string): { value: string } | undefined
 }):

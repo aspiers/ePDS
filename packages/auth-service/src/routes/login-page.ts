@@ -759,11 +759,14 @@ export function renderLoginPage(opts: {
       // still bails to /auth/abort instead of issuing a fresh OTP
       // that would only fail.
       var flowAborted = false;
-      // True iff we have proof the PAR is still alive (last ping
-      // was ok:true and was recent enough to fall inside the
-      // upstream inactivity window). Used to gate every "offer the
-      // user a Resend" decision so they only ever see actions that
-      // can actually complete the flow.
+      /**
+       * Return whether the PAR should be treated as dead.
+       *
+       * We only consider it alive when the last successful heartbeat
+       * is recent enough to fall inside the upstream inactivity window.
+       * This gates every Resend offer so users only see actions that can
+       * still complete the flow.
+       */
       function parLikelyDead() {
         if (flowAborted) return true;
         return Date.now() - lastSuccessfulHeartbeatAt >= parInactivityTimeoutMs;
