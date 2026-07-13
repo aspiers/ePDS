@@ -23,9 +23,8 @@ import {
 import { signClientAssertion } from '@/lib/client-jwk'
 import { cookies } from 'next/headers'
 import {
-  getOAuthSessionFromCookie,
+  readOAuthSessionCookie,
   createUserSessionCookie,
-  resolveCallbackErrorCode,
   OAUTH_COOKIE,
 } from '@/lib/session'
 import { sanitizeForLog } from '@/lib/validation'
@@ -59,17 +58,14 @@ export async function GET(request: NextRequest) {
     // fails signature or JSON validation remains an `auth_failed`
     // error because it may have been tampered with.
     const cookieStore = await cookies()
-    const oauthCookiePresent = cookieStore.get(OAUTH_COOKIE) !== undefined
-    const stateData = getOAuthSessionFromCookie(cookieStore)
-    if (!stateData) {
-      console.error(
-        oauthCookiePresent
-          ? '[oauth/callback] Invalid oauth_state cookie'
-          : '[oauth/callback] Missing oauth_state cookie',
+    const stateResult = readOAuthSessionCookie(cookieStore)
+    if (!stateResult.session) {
+      console.error(stateResult.logMessage)
+      return NextResponse.redirect(
+        new URL(`/?error=${stateResult.errorCode}`, baseUrl),
       )
-      const errorCode = resolveCallbackErrorCode({ oauthCookiePresent })
-      return NextResponse.redirect(new URL(`/?error=${errorCode}`, baseUrl))
     }
+    const stateData = stateResult.session
 
     if (stateData.state !== state) {
       return NextResponse.redirect(new URL('/?error=auth_failed', baseUrl))

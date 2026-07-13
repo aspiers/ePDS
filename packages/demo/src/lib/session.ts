@@ -129,6 +129,28 @@ export function getOAuthSessionFromCookie(cookieStore: {
   }
 }
 
+export function readOAuthSessionCookie(cookieStore: {
+  get(name: string): { value: string } | undefined
+}):
+  | { session: OAuthSession }
+  | {
+      session: null
+      errorCode: 'session_expired' | 'auth_failed'
+      logMessage: string
+    } {
+  const oauthCookiePresent = cookieStore.get(OAUTH_COOKIE) !== undefined
+  const session = getOAuthSessionFromCookie(cookieStore)
+  if (session) return { session }
+
+  return {
+    session: null,
+    errorCode: resolveCallbackErrorCode({ oauthCookiePresent }),
+    logMessage: oauthCookiePresent
+      ? '[oauth/callback] Invalid oauth_state cookie'
+      : '[oauth/callback] Missing oauth_state cookie',
+  }
+}
+
 // --- User Sessions (stored in cookie as signed JSON) ---
 
 const SESSION_COOKIE = 'session_id'

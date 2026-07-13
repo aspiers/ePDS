@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   createOAuthSessionCookie,
   getOAuthSessionFromCookie,
+  readOAuthSessionCookie,
   createUserSessionCookie,
   getUserSessionFromCookie,
   getSessionFromCookie,
@@ -116,5 +117,32 @@ describe('resolveCallbackErrorCode', () => {
     expect(resolveCallbackErrorCode({ oauthCookiePresent: true })).toBe(
       'auth_failed',
     )
+  })
+})
+
+describe('readOAuthSessionCookie', () => {
+  it('returns a valid signed session', () => {
+    const cookie = createOAuthSessionCookie(sampleOAuthSession)
+    expect(
+      readOAuthSessionCookie(cookieStore(cookie.name, cookie.value)),
+    ).toEqual({ session: sampleOAuthSession })
+  })
+
+  it('classifies a missing cookie as an expired session', () => {
+    expect(readOAuthSessionCookie(emptyCookieStore())).toEqual({
+      session: null,
+      errorCode: 'session_expired',
+      logMessage: '[oauth/callback] Missing oauth_state cookie',
+    })
+  })
+
+  it('classifies a present but invalid cookie as an auth failure', () => {
+    expect(
+      readOAuthSessionCookie(cookieStore(OAUTH_COOKIE, 'tampered')),
+    ).toEqual({
+      session: null,
+      errorCode: 'auth_failed',
+      logMessage: '[oauth/callback] Invalid oauth_state cookie',
+    })
   })
 })
