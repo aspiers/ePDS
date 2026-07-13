@@ -141,6 +141,7 @@ describe('OAuth login route (Flow 2)', () => {
     let callCount = 0
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const textSpy = vi.fn(() => Promise.resolve('use_dpop_nonce'))
+    const cancelSpy = vi.fn(() => Promise.resolve())
     global.fetch = vi.fn().mockImplementation(() => {
       callCount++
       if (callCount === 1) {
@@ -152,6 +153,7 @@ describe('OAuth login route (Flow 2)', () => {
           status: 400,
           headers,
           text: textSpy,
+          body: { cancel: cancelSpy },
         })
       }
       // Second call: success
@@ -174,6 +176,7 @@ describe('OAuth login route (Flow 2)', () => {
     expect(resp._url).toContain('request_uri=')
     expect(errorSpy).not.toHaveBeenCalled()
     expect(textSpy).not.toHaveBeenCalled()
+    expect(cancelSpy).toHaveBeenCalledOnce()
   })
 
   it('logs a terminal PAR failure when no DPoP nonce is provided', async () => {

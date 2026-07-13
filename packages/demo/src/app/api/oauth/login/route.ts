@@ -213,6 +213,7 @@ export async function GET(request: Request) {
       const dpopNonce = parRes.headers.get('dpop-nonce')
       if (dpopNonce) {
         console.log('[oauth/login] PAR requires DPoP nonce; retrying')
+        await parRes.body?.cancel()
         const dpopProof2 = createDpopProof({
           privateKey,
           jwk: publicJwk,
