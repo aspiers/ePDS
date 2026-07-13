@@ -210,7 +210,6 @@ export async function GET(request: Request) {
     const oauthCookie = createOAuthSessionCookie(sessionData)
 
     if (!parRes.ok) {
-      const parErrBody = await parRes.text()
       const dpopNonce = parRes.headers.get('dpop-nonce')
       if (dpopNonce) {
         console.log('[oauth/login] PAR requires DPoP nonce; retrying')
@@ -266,6 +265,7 @@ export async function GET(request: Request) {
         return resp2
       }
 
+      const parErrBody = await parRes.text()
       console.error('[oauth/login] PAR failed:', parRes.status, parErrBody)
       return NextResponse.redirect(new URL('/?error=par_failed', baseUrl))
     }
