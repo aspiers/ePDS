@@ -869,7 +869,7 @@ export function renderLoginPage(opts: {
        * is removed from view (display:none) rather than just
        * disabled — a button the user cannot productively click
        * shouldn't be on the page at all. When hidden, a "Start over"
-       * link is shown in its place so the user always has a forward
+       * button is shown in its place so the user always has a forward
        * path. Idempotent — safe to call from heartbeat ticks,
        * visibility change handlers, and inline render paths.
        */
