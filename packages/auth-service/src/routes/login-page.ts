@@ -870,6 +870,17 @@ export function renderLoginPage(opts: {
         var resendBtn = document.getElementById('btn-resend');
         var startOverLink = document.getElementById('btn-start-over');
         if (!resendBtn) return;
+        // An aborted-flow notice already contains the single restart
+        // action. Remove any standalone action that may have been
+        // rendered while PAR merely looked stale, and do not create
+        // another one from the heartbeat's finally handler.
+        if (flowAborted) {
+          resendBtn.style.display = 'none';
+          if (startOverLink && startOverLink.parentNode) {
+            startOverLink.parentNode.removeChild(startOverLink);
+          }
+          return;
+        }
         if (parLikelyDead()) {
           resendBtn.style.display = 'none';
           if (!startOverLink) {

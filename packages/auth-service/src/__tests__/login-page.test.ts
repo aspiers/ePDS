@@ -679,6 +679,22 @@ describe('renderLoginPage flow-aborted notice + reactive abort gates', () => {
     expect(fnBody).not.toContain('innerHTML')
   })
 
+  it('keeps the abort notice as the only Start over action', () => {
+    const html = renderDefault()
+    const fnStart = html.indexOf('function refreshResendVisibility()')
+    const fnEnd = html.indexOf('function abortIfFlowDead', fnStart)
+    const fnBody = html.slice(fnStart, fnEnd)
+    const abortedGuard = fnBody.indexOf('if (flowAborted)')
+    const createAction = fnBody.indexOf("document.createElement('button')")
+
+    expect(abortedGuard).toBeGreaterThan(0)
+    expect(fnBody.slice(abortedGuard, createAction)).toContain(
+      'startOverLink.parentNode.removeChild(startOverLink)',
+    )
+    expect(fnBody.slice(abortedGuard, createAction)).toContain('return;')
+    expect(createAction).toBeGreaterThan(abortedGuard)
+  })
+
   it('triggers the proactive notice when the heartbeat reports a non-transient ok:false', () => {
     const html = renderDefault()
     // The pingHeartbeat handler must call showFlowAbortedNotice
