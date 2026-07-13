@@ -62,8 +62,8 @@ export async function GET(request: NextRequest) {
     const stateData = getOAuthSessionFromCookie(cookieStore)
     if (!stateData) {
       console.error('[oauth/callback] Missing oauth_state cookie')
-      const code = resolveCallbackErrorCode({ oauthCookiePresent: false })
-      return NextResponse.redirect(new URL(`/?error=${code}`, baseUrl))
+      const errorCode = resolveCallbackErrorCode({ oauthCookiePresent: false })
+      return NextResponse.redirect(new URL(`/?error=${errorCode}`, baseUrl))
     }
 
     if (stateData.state !== state) {

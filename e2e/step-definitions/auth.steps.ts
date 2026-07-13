@@ -895,15 +895,13 @@ Then(
 //
 // The demo client stores OAuth state (state value, codeVerifier, token
 // endpoint, issuer) in a signed cookie called `oauth_state` with
-// `maxAge: 600` (see packages/demo/src/app/api/oauth/login/route.ts).
-// If the user spends longer than 10 minutes between starting the OAuth
-// flow and the callback firing — most realistic cause: dawdling on the
-// OTP form, then clicking Resend after the 10-minute mark — the cookie
-// expires before the callback runs, so the callback handler can't find
-// the OAuth state and silently bounces to /?error=auth_failed.
+// `maxAge: 60 * 60` (1 hour; see
+// packages/demo/src/app/api/oauth/login/route.ts). If the cookie expires
+// or is cleared before the callback runs, the callback handler can't find
+// the OAuth state and redirects to /?error=session_expired.
 //
 // This step deletes the cookie programmatically so we can exercise the
-// post-cookie-expiry callback path without a 10-minute wall-clock wait.
+// post-cookie-expiry callback path without a wall-clock wait.
 
 When(
   "the demo client's OAuth state cookie has expired",
@@ -911,8 +909,8 @@ When(
     const page = getPage(this)
     const ctx = page.context()
     const before = await ctx.cookies()
-    const target = before.find((c) => c.name === 'oauth_state')
-    if (!target) {
+    const hasOAuthStateCookie = before.some((c) => c.name === 'oauth_state')
+    if (!hasOAuthStateCookie) {
       throw new Error(
         `Expected to find an oauth_state cookie set by the demo client but only saw: ${before.map((c) => c.name).join(', ')}`,
       )
