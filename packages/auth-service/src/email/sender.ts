@@ -133,7 +133,7 @@ export class EmailSender {
           html: branded.html,
         })
         logger.info(
-          { to, clientId: opts.clientId },
+          { email: to, clientId: opts.clientId },
           'Sent client-branded OTP email',
         )
         return
