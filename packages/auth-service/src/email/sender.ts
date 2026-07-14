@@ -133,7 +133,7 @@ export class EmailSender {
           html: branded.html,
         })
         logger.info(
-          { to, clientId: opts.clientId },
+          { email: to, clientId: opts.clientId },
           'Sent client-branded OTP email',
         )
         return
@@ -165,6 +165,7 @@ export class EmailSender {
       text,
       html,
     })
+    logger.info({ email: to }, 'Sent sign-in OTP email')
   }
 
   private async sendWelcomeCode(opts: {
@@ -183,6 +184,7 @@ export class EmailSender {
       text,
       html,
     })
+    logger.info({ email: to }, 'Sent welcome OTP email')
   }
 
   async sendBackupEmailVerification(opts: {
@@ -201,5 +203,6 @@ export class EmailSender {
       text,
       html,
     })
+    logger.info({ email: to }, 'Sent backup email verification')
   }
 }
