@@ -29,7 +29,10 @@ import {
   resolveDidToPds,
   discoverOAuthEndpoints,
 } from '@/lib/auth'
-import { createOAuthSessionCookie } from '@/lib/session'
+import {
+  createOAuthSessionCookie,
+  OAUTH_COOKIE_MAX_AGE_SECONDS,
+} from '@/lib/session'
 import { signClientAssertion } from '@/lib/client-jwk'
 import { validateEmail, validateHandle, sanitizeForLog } from '@/lib/validation'
 
@@ -260,7 +263,7 @@ export async function GET(request: Request) {
           httpOnly: true,
           secure: true,
           sameSite: 'lax',
-          maxAge: 600,
+          maxAge: OAUTH_COOKIE_MAX_AGE_SECONDS,
           path: '/',
         })
         return resp2
@@ -280,7 +283,7 @@ export async function GET(request: Request) {
       httpOnly: true,
       secure: true,
       sameSite: 'lax',
-      maxAge: 600,
+      maxAge: OAUTH_COOKIE_MAX_AGE_SECONDS,
       path: '/',
     })
     return response
