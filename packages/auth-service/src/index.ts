@@ -18,6 +18,7 @@ import { createChooseHandleRouter } from './routes/choose-handle.js'
 import { createHeartbeatRouter } from './routes/heartbeat.js'
 import { createPreviewRouter } from './routes/preview.js'
 import { createPreviewEmailsRouter } from './routes/preview-emails.js'
+import { createResendWebhookRouter } from './routes/resend-webhook.js'
 import { createRootRouter } from './routes/root.js'
 import { createTestHooksRouter } from './routes/test-hooks.js'
 import { resolveAuthPort } from './lib/resolve-port.js'
@@ -46,6 +47,13 @@ export function createAuthService(config: AuthServiceConfig): {
     config.otpCharset,
   )
   app.all('/api/auth/*', toNodeHandler(betterAuthInstance))
+
+  // Webhook verification requires the exact request bytes, so mount this
+  // before any urlencoded or JSON body parser. It deliberately sits outside
+  // browser CSRF protection; authenticity comes from the Svix signature.
+  if (config.resendWebhookSecret) {
+    app.use(createResendWebhookRouter(ctx.db, config.resendWebhookSecret))
+  }
 
   // Middleware
   app.set('trust proxy', 1)
@@ -158,6 +166,7 @@ async function main() {
     otpCharset: (process.env.OTP_CHARSET || 'numeric') as
       | 'numeric'
       | 'alphanumeric',
+    resendWebhookSecret: process.env.RESEND_WEBHOOK_SECRET || undefined,
     trustedClients: (process.env.PDS_OAUTH_TRUSTED_CLIENTS || '')
       .split(',')
       .map((s) => s.trim())
