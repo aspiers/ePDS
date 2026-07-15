@@ -7,9 +7,9 @@
  * retry the same `svix-id` and may deliver an email's events out of order, so
  * log consumers must deduplicate and order events when calculating latency.
  */
-import { createLogger } from '@certified-app/shared'
 import express, { Router } from 'express'
 import { Webhook } from 'svix'
+import { createLogger } from '@certified-app/shared'
 
 const logger = createLogger('auth:resend-webhook')
 
