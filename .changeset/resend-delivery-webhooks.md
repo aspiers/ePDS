@@ -2,7 +2,7 @@
 'ePDS': minor
 ---
 
-Optional delivery event logs for operators who send email through Resend.
+Optional delivery-event logging for operators who choose the third-party Resend service to send email; ePDS continues to support other email providers.
 
 **Affects:** Operators
 
