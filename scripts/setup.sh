@@ -53,7 +53,7 @@ generate_secrets_in_file() {
 }
 
 # Copy shared vars from the top-level .env into a per-package .env.
-# Only sets vars that already have an uncommented line in the target file,
+# Only sets vars already present in the target or documented in its example,
 # so packages don't end up with vars they don't use.
 inject_shared_vars() {
   local target="$1"
@@ -65,11 +65,11 @@ inject_shared_vars() {
              SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASS SMTP_FROM SMTP_FROM_NAME PDS_EMAIL_FROM_ADDRESS \
              RESEND_WEBHOOK_SECRET \
              PDS_TERMS_OF_SERVICE_URL PDS_PRIVACY_POLICY_URL PDS_LEGAL_ENTITY_NAME; do
-    # Skip if the var isn't in the target AND isn't in the package's .env.example.
-    # This avoids injecting vars a package doesn't use, while still handling
-    # .env files created from an older .env.example that lacked the var.
-    if ! grep -qE "^${var}=" "$target" 2>/dev/null \
-       && ! grep -qE "^${var}=" "$example" 2>/dev/null; then
+    # Optional variables may be commented out in examples. Recognising those
+    # comments lets an explicitly configured top-level value propagate while
+    # leaving the option absent for everyone else.
+    if ! grep -qE "^(# ?)?${var}=" "$target" 2>/dev/null \
+       && ! grep -qE "^(# ?)?${var}=" "$example" 2>/dev/null; then
       continue
     fi
     local val

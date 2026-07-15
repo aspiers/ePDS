@@ -197,11 +197,20 @@ buttons appear on the login page.
 | `AWS_SES_SMTP_PASS`              | AWS SES SMTP password                                                                                                                                                                                                  |
 | `POSTMARK_SERVER_TOKEN`          | Postmark server token                                                                                                                                                                                                  |
 | `EMAIL_TEMPLATE_ALLOWED_DOMAINS` | Optional comma-separated list of HTTPS hostnames from which `email_template_uri` can be fetched. If unset, any HTTPS URL is allowed. If set, templates hosted on unlisted domains are logged as a warning and ignored. |
-| `RESEND_WEBHOOK_SECRET`          | Optional Resend webhook signing secret (`whsec_...`). When set, enables `POST /webhooks/resend`; when unset, the receiver is not mounted.                                                                              |
 
-#### Resend delivery metrics
+#### Optional Resend delivery metrics
 
-To capture delivery latency for email sent through Resend:
+ePDS does **not** require Resend: operators can use any SMTP provider. This
+provider-specific integration is only for operators who already send through
+Resend and choose to collect its webhook delivery metrics. Without
+`RESEND_WEBHOOK_SECRET`, the webhook route is not mounted and the
+`resendDelivery` metrics block is omitted.
+
+| Variable                | Description                                                                                                                                                 |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RESEND_WEBHOOK_SECRET` | Resend users only. Optional webhook signing secret (`whsec_...`) that enables `POST /webhooks/resend` and Resend-specific metrics when explicitly provided. |
+
+To opt into delivery-latency monitoring for email sent through Resend:
 
 1. In the Resend dashboard, register `https://<AUTH_HOSTNAME>/webhooks/resend`.
 2. Subscribe it to `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, and `email.failed`.
@@ -212,12 +221,15 @@ To capture delivery latency for email sent through Resend:
    email emits webhooks, so verify this before relying on the metrics.
 
 The receiver verifies the Svix signature against the raw request body,
-deduplicates retries by `svix-id`, and stores events in the auth SQLite
-database. The authenticated `/metrics` response includes `resendDelivery`
-counts, average and maximum send-to-delivery latency, delayed-delivery events,
-and the fraction of matched deliveries exceeding the 10-minute code lifetime.
-A `deliveryOverOtpLifetimeFraction` of `0` with `matchedDeliveries: 0` means
-there is not yet a matched `email.sent`/`email.delivered` pair.
+deduplicates retries by `svix-id`, and stores the Resend email ID, recipient,
+event type, and timestamps in the auth SQLite database for 30 days. The
+provider-specific rate limit permits 300 webhook requests per minute per source
+IP. The authenticated `/metrics` response includes `resendDelivery` counts,
+average and maximum send-to-delivery latency, delayed-delivery events, and the
+fraction of matched deliveries exceeding the 10-minute code lifetime over the
+retained window. A `deliveryOverOtpLifetimeFraction` of `0` with
+`matchedDeliveries: 0` means there is not yet a matched
+`email.sent`/`email.delivered` pair.
 
 ### Database
 

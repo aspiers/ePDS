@@ -4,7 +4,7 @@
  * and edge cases for existing operations.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { EpdsDb } from '../db.js'
+import { EpdsDb, type ResendEmailEventType } from '../db.js'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
@@ -38,10 +38,11 @@ afterEach(() => {
 
 describe('getMetrics', () => {
   it('returns zero counts for an empty database', () => {
-    const metrics = db.getMetrics()
-    expect(metrics.pendingTokens).toBe(0)
-    expect(metrics.backupEmails).toBe(0)
-    expect(metrics.rateLimitEntries).toBe(0)
+    expect(db.getMetrics()).toEqual({
+      pendingTokens: 0,
+      backupEmails: 0,
+      rateLimitEntries: 0,
+    })
   })
 
   it('counts pending (unused, non-expired) tokens', () => {
@@ -283,12 +284,7 @@ describe('Resend email delivery events', () => {
   function record(
     svixId: string,
     emailId: string,
-    eventType:
-      | 'email.sent'
-      | 'email.delivered'
-      | 'email.delivery_delayed'
-      | 'email.bounced'
-      | 'email.failed',
+    eventType: ResendEmailEventType,
     eventCreatedAt: number,
   ): boolean {
     return db.recordResendEmailEvent({
@@ -297,8 +293,6 @@ describe('Resend email delivery events', () => {
       eventType,
       eventCreatedAt,
       recipients: ['person@example.com'],
-      sender: 'ePDS <login@example.org>',
-      subject: 'Your sign-in code',
     })
   }
 
@@ -352,8 +346,8 @@ describe('Resend email delivery events', () => {
     })
   })
 
-  it('includes empty delivery metrics in the service metrics', () => {
-    expect(db.getMetrics().resendDelivery).toEqual({
+  it('returns empty delivery metrics before receiving events', () => {
+    expect(db.getResendDeliveryMetrics()).toEqual({
       sentEmails: 0,
       deliveredEmails: 0,
       deliveryDelayedEvents: 0,
@@ -365,5 +359,12 @@ describe('Resend email delivery events', () => {
       deliveriesOverOtpLifetime: 0,
       deliveryOverOtpLifetimeFraction: 0,
     })
+  })
+
+  it('purges events received before the retention cutoff', () => {
+    record('old-event', 'old-email', 'email.sent', baseTime)
+
+    expect(db.cleanupResendEmailEventsBefore(Date.now() + 1)).toBe(1)
+    expect(db.getResendEmailEvents('old-email')).toHaveLength(0)
   })
 })

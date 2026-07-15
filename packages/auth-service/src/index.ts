@@ -52,6 +52,14 @@ export function createAuthService(config: AuthServiceConfig): {
   // before any urlencoded or JSON body parser. It deliberately sits outside
   // browser CSRF protection; authenticity comes from the Svix signature.
   if (config.resendWebhookSecret) {
+    app.use(
+      '/webhooks/resend',
+      requestRateLimit({
+        windowMs: 60_000,
+        maxRequests: 300,
+        keyPrefix: 'resend-webhook',
+      }),
+    )
     app.use(createResendWebhookRouter(ctx.db, config.resendWebhookSecret))
   }
 
@@ -124,6 +132,9 @@ export function createAuthService(config: AuthServiceConfig): {
     const metrics = ctx.db.getMetrics()
     res.json({
       ...metrics,
+      ...(config.resendWebhookSecret
+        ? { resendDelivery: ctx.db.getResendDeliveryMetrics() }
+        : {}),
       uptime: process.uptime(),
       memoryUsage: process.memoryUsage().rss,
       timestamp: Date.now(),

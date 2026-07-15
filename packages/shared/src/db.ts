@@ -56,8 +56,6 @@ export interface ResendEmailEvent {
   eventType: ResendEmailEventType
   eventCreatedAt: number
   recipients: string[]
-  sender: string
-  subject: string
   receivedAt: number
 }
 
@@ -231,8 +229,6 @@ export class EpdsDb {
             event_type       TEXT NOT NULL,
             event_created_at INTEGER NOT NULL,
             recipients_json  TEXT NOT NULL,
-            sender           TEXT NOT NULL,
-            subject          TEXT NOT NULL,
             received_at      INTEGER NOT NULL
           );
           CREATE INDEX IF NOT EXISTS idx_ree_email_time
@@ -526,8 +522,8 @@ export class EpdsDb {
     const result = this.db
       .prepare(
         `INSERT OR IGNORE INTO resend_email_event
-           (svix_id, email_id, event_type, event_created_at, recipients_json, sender, subject, received_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+           (svix_id, email_id, event_type, event_created_at, recipients_json, received_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       )
       .run(
         event.svixId,
@@ -535,8 +531,6 @@ export class EpdsDb {
         event.eventType,
         event.eventCreatedAt,
         JSON.stringify(event.recipients),
-        event.sender,
-        event.subject,
         Date.now(),
       )
     return result.changes > 0
@@ -548,7 +542,7 @@ export class EpdsDb {
       .prepare(
         `SELECT svix_id as svixId, email_id as emailId, event_type as eventType,
                 event_created_at as eventCreatedAt, recipients_json as recipientsJson,
-                sender, subject, received_at as receivedAt
+                received_at as receivedAt
          FROM resend_email_event
          WHERE email_id = ?
          ORDER BY event_created_at ASC, svix_id ASC`,
@@ -573,6 +567,13 @@ export class EpdsDb {
         })
       }
     })
+  }
+
+  cleanupResendEmailEventsBefore(cutoffMs: number): number {
+    const result = this.db
+      .prepare('DELETE FROM resend_email_event WHERE received_at < ?')
+      .run(cutoffMs)
+    return result.changes
   }
 
   getResendDeliveryMetrics(): ResendDeliveryMetrics {
@@ -636,7 +637,6 @@ export class EpdsDb {
     pendingTokens: number
     backupEmails: number
     rateLimitEntries: number
-    resendDelivery: ResendDeliveryMetrics
   } {
     const now = Date.now()
     const pendingTokens = (
@@ -656,12 +656,7 @@ export class EpdsDb {
         c: number
       }
     ).c
-    return {
-      pendingTokens,
-      backupEmails,
-      rateLimitEntries,
-      resendDelivery: this.getResendDeliveryMetrics(),
-    }
+    return { pendingTokens, backupEmails, rateLimitEntries }
   }
 
   close(): void {

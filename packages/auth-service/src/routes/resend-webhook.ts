@@ -43,7 +43,7 @@ function isResendEvent(value: unknown): value is ResendEvent {
   const data = value.data
   return (
     typeof value.type === 'string' &&
-    RESEND_EVENT_TYPES.some((eventType) => eventType === value.type) &&
+    (RESEND_EVENT_TYPES as readonly string[]).includes(value.type) &&
     typeof value.created_at === 'string' &&
     Number.isFinite(Date.parse(value.created_at)) &&
     typeof data.email_id === 'string' &&
@@ -123,8 +123,6 @@ function recordResendEvent(
     eventType: event.type,
     eventCreatedAt: Date.parse(event.created_at),
     recipients: event.data.to,
-    sender: event.data.from,
-    subject: event.data.subject,
   })
 }
 
