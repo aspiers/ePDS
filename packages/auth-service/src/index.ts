@@ -37,6 +37,7 @@ export function createAuthService(config: AuthServiceConfig): {
 } {
   const ctx = new AuthServiceContext(config)
   const app = express()
+  app.set('trust proxy', 1)
 
   // Mount better-auth BEFORE express.json() so it can parse its own request bodies.
   // All better-auth endpoints live under /api/auth/*.
@@ -64,7 +65,6 @@ export function createAuthService(config: AuthServiceConfig): {
   }
 
   // Middleware
-  app.set('trust proxy', 1)
   app.use(express.urlencoded({ extended: true }))
   app.use(express.json())
   app.use(cookieParser())
