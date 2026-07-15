@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import * as path from 'node:path'
 import * as fs from 'node:fs'
 import type { HandleMode } from './handle.js'
+import { OTP_LIFETIME_SECONDS } from './types.js'
 
 export interface VerificationTokenRow {
   tokenHash: string
@@ -41,6 +42,39 @@ export interface AuthFlowRow {
   createdAt: number
   expiresAt: number
 }
+
+export type ResendEmailEventType =
+  | 'email.sent'
+  | 'email.delivered'
+  | 'email.delivery_delayed'
+  | 'email.bounced'
+  | 'email.failed'
+
+export interface ResendEmailEvent {
+  svixId: string
+  emailId: string
+  eventType: ResendEmailEventType
+  eventCreatedAt: number
+  recipients: string[]
+  sender: string
+  subject: string
+  receivedAt: number
+}
+
+export interface ResendDeliveryMetrics {
+  sentEmails: number
+  deliveredEmails: number
+  deliveryDelayedEvents: number
+  bouncedEmails: number
+  failedEmails: number
+  matchedDeliveries: number
+  averageDeliveryLatencyMs: number
+  maxDeliveryLatencyMs: number
+  deliveriesOverOtpLifetime: number
+  deliveryOverOtpLifetimeFraction: number
+}
+
+const OTP_LIFETIME_MS = OTP_LIFETIME_SECONDS * 1000
 
 export class EpdsDb {
   private db: Database.Database
@@ -187,6 +221,26 @@ export class EpdsDb {
       // changed to a no-op since the table is harmless to keep and dropping
       // it prevents rollback. The table is no longer used by current code.
       () => {},
+
+      // v10: Persist signed Resend delivery webhooks for latency analysis.
+      () => {
+        this.db.exec(`
+          CREATE TABLE IF NOT EXISTS resend_email_event (
+            svix_id          TEXT PRIMARY KEY,
+            email_id         TEXT NOT NULL,
+            event_type       TEXT NOT NULL,
+            event_created_at INTEGER NOT NULL,
+            recipients_json  TEXT NOT NULL,
+            sender           TEXT NOT NULL,
+            subject          TEXT NOT NULL,
+            received_at      INTEGER NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS idx_ree_email_time
+            ON resend_email_event(email_id, event_created_at);
+          CREATE INDEX IF NOT EXISTS idx_ree_type_time
+            ON resend_email_event(event_type, event_created_at);
+        `)
+      },
     ]
 
     for (let i = currentVersion; i < migrations.length; i++) {
@@ -465,12 +519,124 @@ export class EpdsDb {
     return result.changes
   }
 
+  // ── Resend Email Delivery Events ──
+
+  /** Persist one verified webhook. Returns false when Svix retries an event. */
+  recordResendEmailEvent(event: Omit<ResendEmailEvent, 'receivedAt'>): boolean {
+    const result = this.db
+      .prepare(
+        `INSERT OR IGNORE INTO resend_email_event
+           (svix_id, email_id, event_type, event_created_at, recipients_json, sender, subject, received_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        event.svixId,
+        event.emailId,
+        event.eventType,
+        event.eventCreatedAt,
+        JSON.stringify(event.recipients),
+        event.sender,
+        event.subject,
+        Date.now(),
+      )
+    return result.changes > 0
+  }
+
+  /** Return an email's events in provider timestamp order, not arrival order. */
+  getResendEmailEvents(emailId: string): ResendEmailEvent[] {
+    const rows = this.db
+      .prepare(
+        `SELECT svix_id as svixId, email_id as emailId, event_type as eventType,
+                event_created_at as eventCreatedAt, recipients_json as recipientsJson,
+                sender, subject, received_at as receivedAt
+         FROM resend_email_event
+         WHERE email_id = ?
+         ORDER BY event_created_at ASC, svix_id ASC`,
+      )
+      .all(emailId) as Array<
+      Omit<ResendEmailEvent, 'recipients'> & { recipientsJson: string }
+    >
+
+    return rows.map(({ recipientsJson, ...row }) => {
+      try {
+        const recipients: unknown = JSON.parse(recipientsJson)
+        if (
+          !Array.isArray(recipients) ||
+          !recipients.every((recipient) => typeof recipient === 'string')
+        ) {
+          throw new TypeError('recipients_json is not a string array')
+        }
+        return { ...row, recipients }
+      } catch (err) {
+        throw new Error('Invalid recipients_json in resend_email_event', {
+          cause: err,
+        })
+      }
+    })
+  }
+
+  getResendDeliveryMetrics(): ResendDeliveryMetrics {
+    const counts = this.db
+      .prepare(
+        `SELECT
+           COUNT(DISTINCT CASE WHEN event_type = 'email.sent' THEN email_id END) as sentEmails,
+           COUNT(DISTINCT CASE WHEN event_type = 'email.delivered' THEN email_id END) as deliveredEmails,
+           COALESCE(SUM(CASE WHEN event_type = 'email.delivery_delayed' THEN 1 ELSE 0 END), 0) as deliveryDelayedEvents,
+           COUNT(DISTINCT CASE WHEN event_type = 'email.bounced' THEN email_id END) as bouncedEmails,
+           COUNT(DISTINCT CASE WHEN event_type = 'email.failed' THEN email_id END) as failedEmails
+         FROM resend_email_event`,
+      )
+      .get() as Pick<
+      ResendDeliveryMetrics,
+      | 'sentEmails'
+      | 'deliveredEmails'
+      | 'deliveryDelayedEvents'
+      | 'bouncedEmails'
+      | 'failedEmails'
+    >
+
+    const latency = this.db
+      .prepare(
+        `WITH event_times AS (
+           SELECT email_id,
+             MIN(CASE WHEN event_type = 'email.sent' THEN event_created_at END) AS sent_at,
+             MIN(CASE WHEN event_type = 'email.delivered' THEN event_created_at END) AS delivered_at
+           FROM resend_email_event
+           GROUP BY email_id
+         )
+         SELECT
+           COUNT(*) as matchedDeliveries,
+           COALESCE(AVG(delivered_at - sent_at), 0) as averageDeliveryLatencyMs,
+           COALESCE(MAX(delivered_at - sent_at), 0) as maxDeliveryLatencyMs,
+           COALESCE(SUM(CASE WHEN delivered_at - sent_at > ? THEN 1 ELSE 0 END), 0) as deliveriesOverOtpLifetime
+         FROM event_times
+         WHERE sent_at IS NOT NULL AND delivered_at IS NOT NULL AND delivered_at >= sent_at`,
+      )
+      .get(OTP_LIFETIME_MS) as Pick<
+      ResendDeliveryMetrics,
+      | 'matchedDeliveries'
+      | 'averageDeliveryLatencyMs'
+      | 'maxDeliveryLatencyMs'
+      | 'deliveriesOverOtpLifetime'
+    >
+
+    return {
+      ...counts,
+      ...latency,
+      deliveryOverOtpLifetimeFraction:
+        latency.matchedDeliveries === 0
+          ? 0
+          : latency.deliveriesOverOtpLifetime / latency.matchedDeliveries,
+    }
+  }
+
   // ── Metrics ──
 
   getMetrics(): {
     pendingTokens: number
     backupEmails: number
     rateLimitEntries: number
+    resendDelivery: ResendDeliveryMetrics
   } {
     const now = Date.now()
     const pendingTokens = (
@@ -490,7 +656,12 @@ export class EpdsDb {
         c: number
       }
     ).c
-    return { pendingTokens, backupEmails, rateLimitEntries }
+    return {
+      pendingTokens,
+      backupEmails,
+      rateLimitEntries,
+      resendDelivery: this.getResendDeliveryMetrics(),
+    }
   }
 
   close(): void {

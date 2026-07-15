@@ -12,7 +12,7 @@ export const AUTH_FLOW_COOKIE = 'epds_auth_flow'
  * can use them.
  *
  * NOT the OTP code's lifetime — better-auth enforces that separately
- * in the `verification` table (`expiresIn: 600` in better-auth.ts).
+ * in the `verification` table (`OTP_LIFETIME_SECONDS` in the shared package).
  *
  * 60 minutes lets a slow user who hits OTP expiry (10 min) and clicks
  * Resend still have a live auth_flow + cookie to land on /auth/complete

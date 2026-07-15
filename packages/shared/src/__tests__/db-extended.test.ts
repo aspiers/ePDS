@@ -261,8 +261,9 @@ describe('Database initialization', () => {
       fs.rmSync(path.dirname(path.dirname(nestedPath)), {
         recursive: true,
       })
-      // eslint-disable-next-line no-empty
-    } catch {}
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+    }
   })
 
   it('runs migrations idempotently on second open', () => {
@@ -273,5 +274,96 @@ describe('Database initialization', () => {
     expect(db2).toBeDefined()
     // Replace the module-level db so afterEach cleanup works
     db = db2
+  })
+})
+
+describe('Resend email delivery events', () => {
+  const baseTime = Date.parse('2026-07-14T10:00:00.000Z')
+
+  function record(
+    svixId: string,
+    emailId: string,
+    eventType:
+      | 'email.sent'
+      | 'email.delivered'
+      | 'email.delivery_delayed'
+      | 'email.bounced'
+      | 'email.failed',
+    eventCreatedAt: number,
+  ): boolean {
+    return db.recordResendEmailEvent({
+      svixId,
+      emailId,
+      eventType,
+      eventCreatedAt,
+      recipients: ['person@example.com'],
+      sender: 'ePDS <login@example.org>',
+      subject: 'Your sign-in code',
+    })
+  }
+
+  it('deduplicates retries by Svix ID and returns events by event time', () => {
+    expect(
+      record('msg-delivered', 'email-1', 'email.delivered', baseTime + 2_000),
+    ).toBe(true)
+    expect(record('msg-sent', 'email-1', 'email.sent', baseTime)).toBe(true)
+    expect(record('msg-sent', 'email-1', 'email.sent', baseTime)).toBe(false)
+
+    const events = db.getResendEmailEvents('email-1')
+    expect(events).toHaveLength(2)
+    expect(events.map((event) => event.eventType)).toEqual([
+      'email.sent',
+      'email.delivered',
+    ])
+    expect(events[0]?.recipients).toEqual(['person@example.com'])
+  })
+
+  it('computes delivery latency and outcome metrics across out-of-order events', () => {
+    record(
+      'slow-delivered',
+      'slow-email',
+      'email.delivered',
+      baseTime + 601_000,
+    )
+    record(
+      'slow-delayed',
+      'slow-email',
+      'email.delivery_delayed',
+      baseTime + 5_000,
+    )
+    record('slow-sent', 'slow-email', 'email.sent', baseTime)
+
+    record('fast-sent', 'fast-email', 'email.sent', baseTime + 10_000)
+    record('fast-delivered', 'fast-email', 'email.delivered', baseTime + 70_000)
+    record('bounced', 'bounced-email', 'email.bounced', baseTime)
+    record('failed', 'failed-email', 'email.failed', baseTime)
+
+    expect(db.getResendDeliveryMetrics()).toEqual({
+      sentEmails: 2,
+      deliveredEmails: 2,
+      deliveryDelayedEvents: 1,
+      bouncedEmails: 1,
+      failedEmails: 1,
+      matchedDeliveries: 2,
+      averageDeliveryLatencyMs: 330_500,
+      maxDeliveryLatencyMs: 601_000,
+      deliveriesOverOtpLifetime: 1,
+      deliveryOverOtpLifetimeFraction: 0.5,
+    })
+  })
+
+  it('includes empty delivery metrics in the service metrics', () => {
+    expect(db.getMetrics().resendDelivery).toEqual({
+      sentEmails: 0,
+      deliveredEmails: 0,
+      deliveryDelayedEvents: 0,
+      bouncedEmails: 0,
+      failedEmails: 0,
+      matchedDeliveries: 0,
+      averageDeliveryLatencyMs: 0,
+      maxDeliveryLatencyMs: 0,
+      deliveriesOverOtpLifetime: 0,
+      deliveryOverOtpLifetimeFraction: 0,
+    })
   })
 })

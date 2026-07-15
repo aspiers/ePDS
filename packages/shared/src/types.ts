@@ -32,6 +32,9 @@ export interface RateLimitConfig {
   globalPerMinute: number
 }
 
+/** Better Auth email-code lifetime and delivery-latency threshold. */
+export const OTP_LIFETIME_SECONDS = 10 * 60
+
 export const DEFAULT_RATE_LIMITS: RateLimitConfig = {
   emailPer15Min: 3,
   emailPerHour: 5,

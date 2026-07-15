@@ -11,7 +11,7 @@
  * The instance is mounted at /api/auth/* alongside the existing custom routes.
  */
 import type { EpdsDb } from '@certified-app/shared'
-import { createLogger } from '@certified-app/shared'
+import { createLogger, OTP_LIFETIME_SECONDS } from '@certified-app/shared'
 import { betterAuth } from 'better-auth'
 import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { generateRandomString } from 'better-auth/crypto'
@@ -204,7 +204,7 @@ export async function runBetterAuthMigrations(
     plugins: [
       emailOTP({
         otpLength,
-        expiresIn: 600,
+        expiresIn: OTP_LIFETIME_SECONDS,
         allowedAttempts: 5,
         storeOTP: 'hashed',
         ...(otpCharset === 'alphanumeric'
@@ -305,7 +305,7 @@ export function createBetterAuth(
     plugins: [
       emailOTP({
         otpLength,
-        expiresIn: 600,
+        expiresIn: OTP_LIFETIME_SECONDS,
         allowedAttempts: 5,
         storeOTP: 'hashed',
         ...(otpCharset === 'alphanumeric'
