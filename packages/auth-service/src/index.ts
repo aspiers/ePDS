@@ -18,7 +18,10 @@ import { createChooseHandleRouter } from './routes/choose-handle.js'
 import { createHeartbeatRouter } from './routes/heartbeat.js'
 import { createPreviewRouter } from './routes/preview.js'
 import { createPreviewEmailsRouter } from './routes/preview-emails.js'
-import { createResendWebhookRouter } from './routes/resend-webhook.js'
+import {
+  createResendWebhookRouter,
+  RESEND_WEBHOOK_PATH,
+} from './routes/resend-webhook.js'
 import { createRootRouter } from './routes/root.js'
 import { createTestHooksRouter } from './routes/test-hooks.js'
 import { resolveAuthPort } from './lib/resolve-port.js'
@@ -54,7 +57,7 @@ export function createAuthService(config: AuthServiceConfig): {
   // browser CSRF protection; authenticity comes from the Svix signature.
   if (config.resendWebhookSecret) {
     app.use(
-      '/webhooks/resend',
+      RESEND_WEBHOOK_PATH,
       requestRateLimit({
         windowMs: 60_000,
         maxRequests: 300,

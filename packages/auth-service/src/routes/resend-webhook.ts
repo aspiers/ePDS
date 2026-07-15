@@ -4,14 +4,17 @@
  * The route consumes the untouched request body, verifies Resend's Svix
  * signature before inspecting the payload, accepts only delivery events used
  * by ePDS, and emits one structured log entry per delivery attempt. Resend may
- * retry the same `svix-id` and may deliver an email's events out of order, so
- * log consumers must deduplicate and order events when calculating latency.
+ * retry the same source ID (logged as `eventId`) and may deliver an email's
+ * events out of order, so log consumers must deduplicate and order events when
+ * calculating latency.
  */
 import express, { Router } from 'express'
 import { Webhook } from 'svix'
 import { createLogger } from '@certified-app/shared'
 
-const logger = createLogger('auth:resend-webhook')
+const logger = createLogger('auth:email-webhook')
+
+export const RESEND_WEBHOOK_PATH = '/webhooks/resend'
 
 const RESEND_EVENT_TYPES = [
   'email.sent',
@@ -22,6 +25,21 @@ const RESEND_EVENT_TYPES = [
 ] as const
 
 type ResendEventType = (typeof RESEND_EVENT_TYPES)[number]
+type EmailDeliveryEventType =
+  | 'sent'
+  | 'delivered'
+  | 'delayed'
+  | 'bounced'
+  | 'failed'
+
+const NORMALIZED_EVENT_TYPES: Record<ResendEventType, EmailDeliveryEventType> =
+  {
+    'email.sent': 'sent',
+    'email.delivered': 'delivered',
+    'email.delivery_delayed': 'delayed',
+    'email.bounced': 'bounced',
+    'email.failed': 'failed',
+  }
 
 interface ResendEvent {
   type: ResendEventType
@@ -97,16 +115,16 @@ function verifyResendWebhook(
     payload = verifier.verify(req.body, headers)
   } catch (err) {
     logger.warn(
-      { err, svixId: headers['svix-id'] },
-      'Rejected Resend webhook with invalid signature',
+      { err, provider: 'resend', eventId: headers['svix-id'] },
+      'Rejected email webhook with invalid signature',
     )
     return { ok: false, error: 'Invalid webhook signature' }
   }
 
   if (!isResendEvent(payload)) {
     logger.warn(
-      { svixId: headers['svix-id'] },
-      'Rejected invalid Resend webhook payload',
+      { provider: 'resend', eventId: headers['svix-id'] },
+      'Rejected invalid email webhook payload',
     )
     return { ok: false, error: 'Invalid webhook payload' }
   }
@@ -115,14 +133,15 @@ function verifyResendWebhook(
 
 function logResendEvent(event: ResendEvent, svixId: string): void {
   const fields = {
-    svixId,
-    eventType: event.type,
-    eventCreatedAt: event.created_at,
-    emailId: event.data.email_id,
+    provider: 'resend',
+    eventId: svixId,
+    eventType: NORMALIZED_EVENT_TYPES[event.type],
+    occurredAt: event.created_at,
+    messageId: event.data.email_id,
     recipients: event.data.to,
     subject: event.data.subject,
   }
-  const message = 'Received Resend email delivery event'
+  const message = 'Received email delivery event'
   if (event.type === 'email.delivery_delayed') {
     logger.warn(fields, message)
   } else {
@@ -135,7 +154,7 @@ export function createResendWebhookRouter(webhookSecret: string): Router {
   const verifier = new Webhook(webhookSecret)
 
   router.post(
-    '/webhooks/resend',
+    RESEND_WEBHOOK_PATH,
     express.raw({ type: 'application/json', limit: '64kb' }),
     (req, res) => {
       const result = verifyResendWebhook(req, verifier)

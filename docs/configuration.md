@@ -217,18 +217,20 @@ To opt into delivery-event logging for email sent through Resend:
 4. Send a test sign-in code through the production SMTP configuration and
    confirm that both `email.sent` and `email.delivered` reach the receiver.
    Resend's documentation does not explicitly guarantee that SMTP-submitted
-   email emits webhooks, so verify this before relying on the metrics.
+   email emits webhooks, so verify this before relying on the logs.
 
-The receiver verifies the Svix signature against the raw request body and logs
-`svixId`, `eventType`, `eventCreatedAt`, `emailId`, `recipients`, and `subject`
-as structured fields. Normal events use `info`; `email.delivery_delayed` uses
-`warn`. No webhook data is persisted by ePDS. The provider-specific rate limit
-permits 300 webhook requests per minute per source IP.
+The receiver verifies the Svix signature against the raw request body and emits
+a provider-neutral log schema: `provider`, `eventId`, `eventType`, `occurredAt`,
+`messageId`, `recipients`, and `subject`. Resend event types are normalized to
+`sent`, `delivered`, `delayed`, `bounced`, or `failed`. Normal events use `info`;
+`delayed` uses `warn`. No webhook data is persisted by ePDS. The
+provider-specific rate limit permits 300 webhook requests per minute per source
+IP.
 
-Resend retries carry the same `svixId`, and events may arrive out of order. Log
-analysis should deduplicate by `svixId`, order each `emailId` by
-`eventCreatedAt`, and subtract `email.sent` from `email.delivered` to calculate
-delivery latency.
+Resend retries carry the same source event ID, logged as `eventId`, and events
+may arrive out of order. Log analysis should deduplicate by `eventId`, order
+each `messageId` by `occurredAt`, and subtract `sent` from `delivered` to
+calculate delivery latency.
 
 ### Database
 

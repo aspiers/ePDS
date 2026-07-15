@@ -100,14 +100,15 @@ describe('Resend webhook receiver', () => {
     expect(result).toEqual({ status: 200, json: { received: true } })
     expect(logInfo).toHaveBeenCalledWith(
       {
-        svixId: 'msg_test_123',
-        eventType: 'email.delivered',
-        eventCreatedAt: '2026-07-14T10:00:00.000Z',
-        emailId: 'resend-email-123',
+        provider: 'resend',
+        eventId: 'msg_test_123',
+        eventType: 'delivered',
+        occurredAt: '2026-07-14T10:00:00.000Z',
+        messageId: 'resend-email-123',
         recipients: ['person@example.com'],
         subject: 'Your sign-in code',
       },
-      'Received Resend email delivery event',
+      'Received email delivery event',
     )
   })
 
@@ -116,7 +117,7 @@ describe('Resend webhook receiver', () => {
     await postWebhook(makeEvent(), { svixId: 'msg_retry' })
 
     expect(logInfo).toHaveBeenCalledTimes(2)
-    expect(logInfo.mock.calls.map(([fields]) => fields.svixId)).toEqual([
+    expect(logInfo.mock.calls.map(([fields]) => fields.eventId)).toEqual([
       'msg_retry',
       'msg_retry',
     ])
@@ -127,11 +128,12 @@ describe('Resend webhook receiver', () => {
 
     expect(logWarn).toHaveBeenCalledWith(
       expect.objectContaining({
-        svixId: 'msg_test_123',
-        eventType: 'email.delivery_delayed',
-        emailId: 'resend-email-123',
+        provider: 'resend',
+        eventId: 'msg_test_123',
+        eventType: 'delayed',
+        messageId: 'resend-email-123',
       }),
-      'Received Resend email delivery event',
+      'Received email delivery event',
     )
   })
 
