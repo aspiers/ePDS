@@ -197,6 +197,27 @@ buttons appear on the login page.
 | `AWS_SES_SMTP_PASS`              | AWS SES SMTP password                                                                                                                                                                                                  |
 | `POSTMARK_SERVER_TOKEN`          | Postmark server token                                                                                                                                                                                                  |
 | `EMAIL_TEMPLATE_ALLOWED_DOMAINS` | Optional comma-separated list of HTTPS hostnames from which `email_template_uri` can be fetched. If unset, any HTTPS URL is allowed. If set, templates hosted on unlisted domains are logged as a warning and ignored. |
+| `RESEND_WEBHOOK_SECRET`          | Optional Resend webhook signing secret (`whsec_...`). When set, enables `POST /webhooks/resend`; when unset, the receiver is not mounted.                                                                              |
+
+#### Resend delivery metrics
+
+To capture delivery latency for email sent through Resend:
+
+1. In the Resend dashboard, register `https://<AUTH_HOSTNAME>/webhooks/resend`.
+2. Subscribe it to `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, and `email.failed`.
+3. Set `RESEND_WEBHOOK_SECRET` to that endpoint's signing secret and redeploy the auth service.
+4. Send a test sign-in code through the production SMTP configuration and
+   confirm that both `email.sent` and `email.delivered` reach the receiver.
+   Resend's documentation does not explicitly guarantee that SMTP-submitted
+   email emits webhooks, so verify this before relying on the metrics.
+
+The receiver verifies the Svix signature against the raw request body,
+deduplicates retries by `svix-id`, and stores events in the auth SQLite
+database. The authenticated `/metrics` response includes `resendDelivery`
+counts, average and maximum send-to-delivery latency, delayed-delivery events,
+and the fraction of matched deliveries exceeding the 10-minute code lifetime.
+A `deliveryOverOtpLifetimeFraction` of `0` with `matchedDeliveries: 0` means
+there is not yet a matched `email.sent`/`email.delivered` pair.
 
 ### Database
 
