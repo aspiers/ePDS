@@ -60,7 +60,7 @@ export function createAuthService(config: AuthServiceConfig): {
         keyPrefix: 'resend-webhook',
       }),
     )
-    app.use(createResendWebhookRouter(ctx.db, config.resendWebhookSecret))
+    app.use(createResendWebhookRouter(config.resendWebhookSecret))
   }
 
   // Middleware
@@ -132,9 +132,6 @@ export function createAuthService(config: AuthServiceConfig): {
     const metrics = ctx.db.getMetrics()
     res.json({
       ...metrics,
-      ...(config.resendWebhookSecret
-        ? { resendDelivery: ctx.db.getResendDeliveryMetrics() }
-        : {}),
       uptime: process.uptime(),
       memoryUsage: process.memoryUsage().rss,
       timestamp: Date.now(),

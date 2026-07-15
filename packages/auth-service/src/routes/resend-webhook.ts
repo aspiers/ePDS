@@ -3,10 +3,11 @@
  *
  * The route consumes the untouched request body, verifies Resend's Svix
  * signature before inspecting the payload, accepts only delivery events used
- * by ePDS, and persists them idempotently by `svix-id`. Resend may retry the
- * same event and may deliver an email's events out of order.
+ * by ePDS, and emits one structured log entry per delivery attempt. Resend may
+ * retry the same `svix-id` and may deliver an email's events out of order, so
+ * log consumers must deduplicate and order events when calculating latency.
  */
-import { createLogger, type EpdsDb } from '@certified-app/shared'
+import { createLogger } from '@certified-app/shared'
 import express, { Router } from 'express'
 import { Webhook } from 'svix'
 
@@ -112,42 +113,23 @@ function verifyResendWebhook(
   return { ok: true, headers, event: payload }
 }
 
-function recordResendEvent(
-  db: EpdsDb,
-  svixId: string,
-  event: ResendEvent,
-): boolean {
-  return db.recordResendEmailEvent({
+function logResendEvent(event: ResendEvent, svixId: string): void {
+  const fields = {
     svixId,
-    emailId: event.data.email_id,
     eventType: event.type,
-    eventCreatedAt: Date.parse(event.created_at),
+    eventCreatedAt: event.created_at,
+    emailId: event.data.email_id,
     recipients: event.data.to,
-  })
-}
-
-function logProcessedEvent(event: ResendEvent, inserted: boolean): void {
-  if (inserted && event.type === 'email.delivery_delayed') {
-    logger.warn(
-      { emailId: event.data.email_id },
-      'Resend reported delayed email delivery',
-    )
-    return
   }
-  logger.debug(
-    {
-      emailId: event.data.email_id,
-      eventType: event.type,
-      duplicate: !inserted,
-    },
-    'Processed Resend email event',
-  )
+  const message = 'Received Resend email delivery event'
+  if (event.type === 'email.delivery_delayed') {
+    logger.warn(fields, message)
+  } else {
+    logger.info(fields, message)
+  }
 }
 
-export function createResendWebhookRouter(
-  db: EpdsDb,
-  webhookSecret: string,
-): Router {
+export function createResendWebhookRouter(webhookSecret: string): Router {
   const router = Router()
   const verifier = new Webhook(webhookSecret)
 
@@ -161,13 +143,8 @@ export function createResendWebhookRouter(
         return
       }
 
-      const inserted = recordResendEvent(
-        db,
-        result.headers['svix-id'],
-        result.event,
-      )
-      logProcessedEvent(result.event, inserted)
-      res.status(200).json({ received: true, duplicate: !inserted })
+      logResendEvent(result.event, result.headers['svix-id'])
+      res.status(200).json({ received: true })
     },
   )
 

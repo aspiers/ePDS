@@ -4,9 +4,6 @@ export type {
   BackupEmailRow,
   EmailRateLimitRow,
   AuthFlowRow,
-  ResendEmailEventType,
-  ResendEmailEvent,
-  ResendDeliveryMetrics,
 } from './db.js'
 export {
   generateVerificationToken,
@@ -25,7 +22,7 @@ export type {
   AuthConfig,
   RateLimitConfig,
 } from './types.js'
-export { DEFAULT_RATE_LIMITS, OTP_LIFETIME_SECONDS } from './types.js'
+export { DEFAULT_RATE_LIMITS } from './types.js'
 export { createLogger } from './logger.js'
 export {
   escapeHtml,

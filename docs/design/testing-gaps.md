@@ -61,7 +61,7 @@ pds-core callback, full OAuth flow).
 
 The signed `resend-webhook.ts` receiver has HTTP-level integration coverage
 for valid signatures, rejected signatures, supported event filtering,
-persistence, and idempotent retries. The browser/OAuth route files remain the
+structured logging, and retry correlation. The browser/OAuth route files remain the
 main gap: `login-page.ts`, `consent.ts`, `recovery.ts`, `account-login.ts`,
 `account-settings.ts`, `choose-handle.ts`, and `complete.ts`.
 

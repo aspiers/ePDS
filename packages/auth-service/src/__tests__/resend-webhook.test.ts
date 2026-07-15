@@ -1,34 +1,25 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { EpdsDb } from '@certified-app/shared'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import express from 'express'
-import * as fs from 'node:fs'
-import * as os from 'node:os'
-import * as path from 'node:path'
-import { randomUUID } from 'node:crypto'
 import { Webhook } from 'svix'
+
+const { logInfo, logWarn } = vi.hoisted(() => ({
+  logInfo: vi.fn(),
+  logWarn: vi.fn(),
+}))
+
+vi.mock('@certified-app/shared', () => ({
+  createLogger: () => ({ info: logInfo, warn: logWarn }),
+}))
+
 import { createResendWebhookRouter } from '../routes/resend-webhook.js'
 
 const WEBHOOK_SECRET = `whsec_${Buffer.from('test-webhook-secret').toString(
   'base64',
 )}`
 
-let db: EpdsDb
-let dbPath: string
-
 beforeEach(() => {
-  dbPath = path.join(os.tmpdir(), `resend-webhook-${randomUUID()}.sqlite`)
-  db = new EpdsDb(dbPath)
-})
-
-afterEach(() => {
-  db.close()
-  for (const suffix of ['', '-wal', '-shm']) {
-    try {
-      fs.unlinkSync(dbPath + suffix)
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
-    }
-  }
+  logInfo.mockClear()
+  logWarn.mockClear()
 })
 
 function makeEvent(type = 'email.sent'): Record<string, unknown> {
@@ -53,7 +44,7 @@ async function postWebhook(
   } = {},
 ): Promise<{ status: number; json: Record<string, unknown> }> {
   const app = express()
-  app.use(createResendWebhookRouter(db, WEBHOOK_SECRET))
+  app.use(createResendWebhookRouter(WEBHOOK_SECRET))
   const server = app.listen(0)
 
   try {
@@ -103,40 +94,52 @@ async function postWebhook(
 }
 
 describe('Resend webhook receiver', () => {
-  it('verifies, persists, and acknowledges a delivery event', async () => {
+  it('verifies, logs, and acknowledges a delivery event', async () => {
     const result = await postWebhook(makeEvent('email.delivered'))
 
-    expect(result).toEqual({
-      status: 200,
-      json: { received: true, duplicate: false },
-    })
-    expect(db.getResendEmailEvents('resend-email-123')).toMatchObject([
+    expect(result).toEqual({ status: 200, json: { received: true } })
+    expect(logInfo).toHaveBeenCalledWith(
       {
         svixId: 'msg_test_123',
         eventType: 'email.delivered',
+        eventCreatedAt: '2026-07-14T10:00:00.000Z',
+        emailId: 'resend-email-123',
         recipients: ['person@example.com'],
       },
+      'Received Resend email delivery event',
+    )
+  })
+
+  it('logs retries with the same Svix ID for downstream deduplication', async () => {
+    await postWebhook(makeEvent(), { svixId: 'msg_retry' })
+    await postWebhook(makeEvent(), { svixId: 'msg_retry' })
+
+    expect(logInfo).toHaveBeenCalledTimes(2)
+    expect(logInfo.mock.calls.map(([fields]) => fields.svixId)).toEqual([
+      'msg_retry',
+      'msg_retry',
     ])
   })
 
-  it('acknowledges a Svix retry without inserting it twice', async () => {
-    const first = await postWebhook(makeEvent(), { svixId: 'msg_retry' })
-    const retry = await postWebhook(makeEvent(), { svixId: 'msg_retry' })
+  it('logs delivery delays at warning level', async () => {
+    await postWebhook(makeEvent('email.delivery_delayed'))
 
-    expect(first.json.duplicate).toBe(false)
-    expect(retry).toEqual({
-      status: 200,
-      json: { received: true, duplicate: true },
-    })
-    expect(db.getResendEmailEvents('resend-email-123')).toHaveLength(1)
+    expect(logWarn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        svixId: 'msg_test_123',
+        eventType: 'email.delivery_delayed',
+        emailId: 'resend-email-123',
+      }),
+      'Received Resend email delivery event',
+    )
   })
 
-  it('rejects an invalid signature before persisting the payload', async () => {
+  it('rejects an invalid signature before logging the payload', async () => {
     const result = await postWebhook(makeEvent(), { validSignature: false })
 
     expect(result.status).toBe(400)
     expect(result.json).toEqual({ error: 'Invalid webhook signature' })
-    expect(db.getResendEmailEvents('resend-email-123')).toHaveLength(0)
+    expect(logInfo).not.toHaveBeenCalled()
   })
 
   it('rejects a request without the required Svix headers', async () => {
@@ -146,14 +149,14 @@ describe('Resend webhook receiver', () => {
       status: 400,
       json: { error: 'Invalid webhook request' },
     })
-    expect(db.getResendEmailEvents('resend-email-123')).toHaveLength(0)
+    expect(logInfo).not.toHaveBeenCalled()
   })
 
-  it('rejects signed event types that are not used for delivery metrics', async () => {
+  it('rejects signed event types that are not used for delivery logs', async () => {
     const result = await postWebhook(makeEvent('email.opened'))
 
     expect(result.status).toBe(400)
     expect(result.json).toEqual({ error: 'Invalid webhook payload' })
-    expect(db.getResendEmailEvents('resend-email-123')).toHaveLength(0)
+    expect(logInfo).not.toHaveBeenCalled()
   })
 })

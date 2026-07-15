@@ -48,7 +48,6 @@ export interface AuthServiceConfig {
 }
 
 const logger = createLogger('auth-service')
-const RESEND_EMAIL_EVENT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 
 export class AuthServiceContext {
   public readonly db: EpdsDb
@@ -73,9 +72,6 @@ export class AuthServiceContext {
         }
         this.db.cleanupOldRateLimitEntries()
         this.db.cleanupOldOtpFailures()
-        this.db.cleanupResendEmailEventsBefore(
-          Date.now() - RESEND_EMAIL_EVENT_RETENTION_MS,
-        )
       },
       5 * 60 * 1000,
     )
