@@ -220,8 +220,8 @@ To opt into delivery-event logging for email sent through Resend:
    email emits webhooks, so verify this before relying on the metrics.
 
 The receiver verifies the Svix signature against the raw request body and logs
-`svixId`, `eventType`, `eventCreatedAt`, `emailId`, and `recipients` as
-structured fields. Normal events use `info`; `email.delivery_delayed` uses
+`svixId`, `eventType`, `eventCreatedAt`, `emailId`, `recipients`, and `subject`
+as structured fields. Normal events use `info`; `email.delivery_delayed` uses
 `warn`. No webhook data is persisted by ePDS. The provider-specific rate limit
 permits 300 webhook requests per minute per source IP.
 

@@ -105,6 +105,7 @@ describe('Resend webhook receiver', () => {
         eventCreatedAt: '2026-07-14T10:00:00.000Z',
         emailId: 'resend-email-123',
         recipients: ['person@example.com'],
+        subject: 'Your sign-in code',
       },
       'Received Resend email delivery event',
     )

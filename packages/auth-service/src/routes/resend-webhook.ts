@@ -120,6 +120,7 @@ function logResendEvent(event: ResendEvent, svixId: string): void {
     eventCreatedAt: event.created_at,
     emailId: event.data.email_id,
     recipients: event.data.to,
+    subject: event.data.subject,
   }
   const message = 'Received Resend email delivery event'
   if (event.type === 'email.delivery_delayed') {
