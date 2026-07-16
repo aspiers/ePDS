@@ -2,13 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import express from 'express'
 import { Webhook } from 'svix'
 
-const { logInfo, logWarn } = vi.hoisted(() => ({
+const { logDebug, logInfo, logWarn } = vi.hoisted(() => ({
+  logDebug: vi.fn(),
   logInfo: vi.fn(),
   logWarn: vi.fn(),
 }))
 
 vi.mock('@certified-app/shared', () => ({
-  createLogger: () => ({ info: logInfo, warn: logWarn }),
+  createLogger: () => ({ debug: logDebug, info: logInfo, warn: logWarn }),
 }))
 
 import { createResendWebhookRouter } from '../routes/resend-webhook.js'
@@ -18,6 +19,7 @@ const WEBHOOK_SECRET = `whsec_${Buffer.from('test-webhook-secret').toString(
 )}`
 
 beforeEach(() => {
+  logDebug.mockClear()
   logInfo.mockClear()
   logWarn.mockClear()
 })
@@ -44,7 +46,7 @@ async function postWebhook(
   } = {},
 ): Promise<{ status: number; json: Record<string, unknown> }> {
   const app = express()
-  app.use(createResendWebhookRouter(WEBHOOK_SECRET))
+  app.use(createResendWebhookRouter(WEBHOOK_SECRET, 'login@example.org'))
   const server = app.listen(0)
 
   try {
@@ -121,6 +123,24 @@ describe('Resend webhook receiver', () => {
       'msg_retry',
       'msg_retry',
     ])
+  })
+
+  it('acknowledges account-wide events for other senders without logging them', async () => {
+    const event = makeEvent()
+    const data = event.data as Record<string, unknown>
+    data.from = 'Another service <noreply@other.example>'
+
+    const result = await postWebhook(event, { svixId: 'msg_other_sender' })
+
+    expect(result).toEqual({
+      status: 200,
+      json: { received: true, ignored: true },
+    })
+    expect(logInfo).not.toHaveBeenCalled()
+    expect(logDebug).toHaveBeenCalledWith(
+      { provider: 'resend', eventId: 'msg_other_sender' },
+      'Ignored email webhook for another sender',
+    )
   })
 
   it('logs delivery delays at warning level', async () => {

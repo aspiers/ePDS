@@ -219,6 +219,13 @@ To opt into delivery-event logging for email sent through Resend:
    Resend's documentation does not explicitly guarantee that SMTP-submitted
    email emits webhooks, so verify this before relying on the logs.
 
+Resend webhooks cover the whole Resend account rather than one sending domain.
+The receiver parses each event's `data.from` address and logs it only when it
+exactly matches this ePDS instance's `SMTP_FROM`; events for other senders are
+acknowledged without logging their payload. ePDS instances sharing a Resend
+account must therefore use distinct `SMTP_FROM` addresses. Events cannot be
+separated when multiple instances use the same sender address.
+
 The receiver verifies the Svix signature against the raw request body and emits
 a provider-neutral log schema: `provider`, `eventId`, `eventType`, `occurredAt`,
 `messageId`, `recipients`, and `subject`. Resend event types are normalized to

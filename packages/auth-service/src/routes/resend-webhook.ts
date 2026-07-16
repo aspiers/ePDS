@@ -9,6 +9,7 @@
  * calculating latency.
  */
 import express, { Router } from 'express'
+import addressparser from 'nodemailer/lib/addressparser/index.js'
 import { Webhook } from 'svix'
 import { createLogger } from '@certified-app/shared'
 
@@ -54,6 +55,18 @@ interface ResendEvent {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+function parseSingleEmailAddress(value: string): string | null {
+  try {
+    const addresses = addressparser(value, { flatten: true })
+    if (addresses.length !== 1) return null
+    const address = addresses[0]?.address.trim().toLowerCase()
+    return address || null
+  } catch (err) {
+    logger.warn({ err }, 'Failed to parse email sender address')
+    return null
+  }
 }
 
 function isResendEvent(value: unknown): value is ResendEvent {
@@ -149,9 +162,16 @@ function logResendEvent(event: ResendEvent, svixId: string): void {
   }
 }
 
-export function createResendWebhookRouter(webhookSecret: string): Router {
+export function createResendWebhookRouter(
+  webhookSecret: string,
+  expectedFrom: string,
+): Router {
   const router = Router()
   const verifier = new Webhook(webhookSecret)
+  const expectedFromAddress = parseSingleEmailAddress(expectedFrom)
+  if (!expectedFromAddress) {
+    throw new Error('RESEND_WEBHOOK_SECRET requires a valid SMTP_FROM address')
+  }
 
   router.post(
     RESEND_WEBHOOK_PATH,
@@ -163,7 +183,18 @@ export function createResendWebhookRouter(webhookSecret: string): Router {
         return
       }
 
-      logResendEvent(result.event, result.headers['svix-id'])
+      const eventId = result.headers['svix-id']
+      const eventFromAddress = parseSingleEmailAddress(result.event.data.from)
+      if (eventFromAddress !== expectedFromAddress) {
+        logger.debug(
+          { provider: 'resend', eventId },
+          'Ignored email webhook for another sender',
+        )
+        res.status(200).json({ received: true, ignored: true })
+        return
+      }
+
+      logResendEvent(result.event, eventId)
       res.status(200).json({ received: true })
     },
   )

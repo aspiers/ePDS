@@ -64,7 +64,9 @@ export function createAuthService(config: AuthServiceConfig): {
         keyPrefix: 'resend-webhook',
       }),
     )
-    app.use(createResendWebhookRouter(config.resendWebhookSecret))
+    app.use(
+      createResendWebhookRouter(config.resendWebhookSecret, config.email.from),
+    )
   }
 
   // Middleware
