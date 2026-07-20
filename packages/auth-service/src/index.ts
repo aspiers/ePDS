@@ -65,7 +65,12 @@ export function createAuthService(config: AuthServiceConfig): {
       }),
     )
     app.use(
-      createResendWebhookRouter(config.resendWebhookSecret, config.email.from),
+      createResendWebhookRouter(
+        config.resendWebhookSecret,
+        config.email.from,
+        config.otpLength,
+        config.otpCharset,
+      ),
     )
   }
 

@@ -228,8 +228,10 @@ separated when multiple instances use the same sender address.
 
 The receiver verifies the Svix signature against the raw request body and emits
 a provider-neutral log schema: `provider`, `eventId`, `eventType`, `occurredAt`,
-`messageId`, `recipients`, and `subject`. Resend event types are normalized to
-`sent`, `delivered`, `delayed`, `bounced`, or `failed`. Normal events use `info`;
+`messageId`, `email`, and `subject`. Any sign-in code in `subject` is replaced
+with `[REDACTED]` to prevent it from reaching logs while preserving the rest of
+the subject. Resend event types are normalized to `sent`, `delivered`, `delayed`,
+`bounced`, or `failed`. Normal events use `info`;
 `delayed` uses `warn`. No webhook data is persisted by ePDS. The
 provider-specific rate limit permits 300 webhook requests per minute per source
 IP.

@@ -32,6 +32,7 @@ type EmailDeliveryEventType =
   | 'delayed'
   | 'bounced'
   | 'failed'
+type OtpCharset = 'numeric' | 'alphanumeric'
 
 const NORMALIZED_EVENT_TYPES: Record<ResendEventType, EmailDeliveryEventType> =
   {
@@ -47,7 +48,7 @@ interface ResendEvent {
   created_at: string
   data: {
     email_id: string
-    to: string[]
+    to: [string, ...string[]]
     from: string
     subject: string
   }
@@ -80,6 +81,7 @@ function isResendEvent(value: unknown): value is ResendEvent {
     Number.isFinite(Date.parse(value.created_at)) &&
     typeof data.email_id === 'string' &&
     Array.isArray(data.to) &&
+    data.to.length > 0 &&
     data.to.every((recipient) => typeof recipient === 'string') &&
     typeof data.from === 'string' &&
     typeof data.subject === 'string'
@@ -144,15 +146,62 @@ function verifyResendWebhook(
   return { ok: true, headers, event: payload }
 }
 
-function logResendEvent(event: ResendEvent, svixId: string): void {
+const NUMERIC_OTP_CANDIDATE =
+  /(^|[^0-9])((?:[0-9]{3,4}(?: [0-9]{3,4}){1,3}|[0-9]{4,12}))(?![0-9])/g
+const ALPHANUMERIC_OTP_CANDIDATE =
+  /(^|[^A-Za-z0-9])((?:[A-Z0-9]{3,4}(?: [A-Z0-9]{3,4}){1,3}|[A-Z0-9]{4,12}))(?![A-Za-z0-9])/g
+
+function otpGroupSize(length: number): number | null {
+  if (length < 8) return null
+  if (length % 4 === 0) return 4
+  if (length % 3 === 0) return 3
+  return null
+}
+
+function isOtpCandidate(candidate: string, otpLength: number): boolean {
+  const raw = candidate.replaceAll(' ', '')
+  if (raw.length !== otpLength) return false
+  if (!candidate.includes(' ')) return true
+
+  const groupSize = otpGroupSize(otpLength)
+  if (!groupSize) return false
+  const groups = candidate.split(' ')
+  return (
+    groups.length === otpLength / groupSize &&
+    groups.every((group) => group.length === groupSize)
+  )
+}
+
+function redactOtpFromSubject(
+  subject: string,
+  otpLength: number,
+  otpCharset: OtpCharset,
+): string {
+  const pattern =
+    otpCharset === 'numeric'
+      ? NUMERIC_OTP_CANDIDATE
+      : ALPHANUMERIC_OTP_CANDIDATE
+  return subject.replace(
+    pattern,
+    (match: string, prefix: string, candidate: string) =>
+      isOtpCandidate(candidate, otpLength) ? `${prefix}[REDACTED]` : match,
+  )
+}
+
+function logResendEvent(
+  event: ResendEvent,
+  svixId: string,
+  otpLength: number,
+  otpCharset: OtpCharset,
+): void {
   const fields = {
     provider: 'resend',
     eventId: svixId,
     eventType: NORMALIZED_EVENT_TYPES[event.type],
     occurredAt: event.created_at,
     messageId: event.data.email_id,
-    recipients: event.data.to,
-    subject: event.data.subject,
+    email: event.data.to[0],
+    subject: redactOtpFromSubject(event.data.subject, otpLength, otpCharset),
   }
   const message = 'Received email delivery event'
   if (event.type === 'email.delivery_delayed') {
@@ -165,6 +214,8 @@ function logResendEvent(event: ResendEvent, svixId: string): void {
 export function createResendWebhookRouter(
   webhookSecret: string,
   expectedFrom: string,
+  otpLength: number,
+  otpCharset: OtpCharset,
 ): Router {
   const router = Router()
   const verifier = new Webhook(webhookSecret)
@@ -194,7 +245,7 @@ export function createResendWebhookRouter(
         return
       }
 
-      logResendEvent(result.event, eventId)
+      logResendEvent(result.event, eventId, otpLength, otpCharset)
       res.status(200).json({ received: true })
     },
   )

@@ -32,7 +32,7 @@ function makeEvent(type = 'email.sent'): Record<string, unknown> {
       email_id: 'resend-email-123',
       to: ['person@example.com'],
       from: 'ePDS <login@example.org>',
-      subject: 'Your sign-in code',
+      subject: '123456 — Your sign-in code',
     },
   }
 }
@@ -43,10 +43,19 @@ async function postWebhook(
     svixId?: string
     validSignature?: boolean
     includeHeaders?: boolean
+    otpLength?: number
+    otpCharset?: 'numeric' | 'alphanumeric'
   } = {},
 ): Promise<{ status: number; json: Record<string, unknown> }> {
   const app = express()
-  app.use(createResendWebhookRouter(WEBHOOK_SECRET, 'login@example.org'))
+  app.use(
+    createResendWebhookRouter(
+      WEBHOOK_SECRET,
+      'login@example.org',
+      options.otpLength ?? 6,
+      options.otpCharset ?? 'numeric',
+    ),
+  )
   const server = app.listen(0)
 
   try {
@@ -107,12 +116,50 @@ describe('Resend webhook receiver', () => {
         eventType: 'delivered',
         occurredAt: '2026-07-14T10:00:00.000Z',
         messageId: 'resend-email-123',
-        recipients: ['person@example.com'],
-        subject: 'Your sign-in code',
+        email: 'person@example.com',
+        subject: '[REDACTED] — Your sign-in code',
       },
       'Received email delivery event',
     )
   })
+
+  it.each([
+    {
+      label: 'a grouped numeric code',
+      subject: '1234 5678 — Your sign-in code',
+      otpLength: 8,
+      otpCharset: 'numeric' as const,
+      expected: '[REDACTED] — Your sign-in code',
+    },
+    {
+      label: 'an alphanumeric code',
+      subject: 'AB12CD — Your sign-in code',
+      otpLength: 6,
+      otpCharset: 'alphanumeric' as const,
+      expected: '[REDACTED] — Your sign-in code',
+    },
+    {
+      label: 'a subject without a code',
+      subject: 'Verify your backup email',
+      otpLength: 6,
+      otpCharset: 'numeric' as const,
+      expected: 'Verify your backup email',
+    },
+  ])(
+    'sanitizes $label without hiding the rest of the subject',
+    async (test) => {
+      const event = makeEvent()
+      const data = event.data as Record<string, unknown>
+      data.subject = test.subject
+
+      await postWebhook(event, {
+        otpLength: test.otpLength,
+        otpCharset: test.otpCharset,
+      })
+
+      expect(logInfo.mock.calls[0]?.[0].subject).toBe(test.expected)
+    },
+  )
 
   it('logs retries with the same Svix ID for downstream deduplication', async () => {
     await postWebhook(makeEvent(), { svixId: 'msg_retry' })
@@ -177,6 +224,18 @@ describe('Resend webhook receiver', () => {
 
   it('rejects signed event types that are not used for delivery logs', async () => {
     const result = await postWebhook(makeEvent('email.opened'))
+
+    expect(result.status).toBe(400)
+    expect(result.json).toEqual({ error: 'Invalid webhook payload' })
+    expect(logInfo).not.toHaveBeenCalled()
+  })
+
+  it('rejects a delivery event without a recipient email', async () => {
+    const event = makeEvent()
+    const data = event.data as Record<string, unknown>
+    data.to = []
+
+    const result = await postWebhook(event)
 
     expect(result.status).toBe(400)
     expect(result.json).toEqual({ error: 'Invalid webhook payload' })
