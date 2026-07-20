@@ -233,7 +233,7 @@ function logResendEvent(
     email: event.data.to[0],
     subject: redactOtpFromSubject(event.data.subject, otpLength, otpCharset),
   }
-  const message = 'Received email event'
+  const message = `Received email event ${fields.eventType} from ${fields.provider}`
   if ((WARNING_RESEND_EVENT_TYPES as readonly string[]).includes(event.type)) {
     logger.warn(fields, message)
   } else {
