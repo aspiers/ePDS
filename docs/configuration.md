@@ -213,7 +213,8 @@ To opt into email-event logging for email sent through Resend:
 
 1. In the Resend dashboard, register `https://<AUTH_HOSTNAME>/webhooks/resend`.
 2. Subscribe it to `email.sent`, `email.delivered`, `email.delivery_delayed`,
-   `email.opened`, `email.bounced`, and `email.failed`.
+   `email.opened`, `email.bounced`, `email.failed`, `email.complained`,
+   `email.suppressed`, and `email.scheduled`.
 3. To receive `email.opened`, enable Resend open tracking for the sending domain
    and configure its tracking CNAME. Resend inserts the tracking pixel; ePDS
    does not alter email HTML. Without tracking, the other events still work.
@@ -237,10 +238,14 @@ a provider-neutral log schema: `provider`, `eventId`, `eventType`, `occurredAt`,
 `messageId`, `email`, and `subject`. Any sign-in code in `subject` is replaced
 with `[REDACTED]` to prevent it from reaching logs while preserving the rest of
 the subject. Resend event types are normalized to `sent`, `delivered`, `delayed`,
-`opened`, `bounced`, or `failed`. Normal events use `info`; `delayed` uses
-`warn`. An `opened` event means the tracking pixel was fetched, which can be
-caused or suppressed by mail-client privacy features and is not proof that the
-recipient read the message. No webhook data is persisted by ePDS. The
+`opened`, `bounced`, `failed`, `complained`, `suppressed`, or `scheduled`.
+`Delayed`, `complained`, and `suppressed` events use `warn`; the rest use `info`.
+An `opened` event means the tracking pixel was fetched, which can be caused or
+suppressed by mail-client privacy features and is not proof that the recipient
+read the message. Signed `email.clicked` and inbound `email.received` events are
+acknowledged without logging their payloads, preventing retries if the Resend
+endpoint is accidentally subscribed to them. No webhook data is persisted by
+ePDS. The
 provider-specific rate limit permits 300 webhook requests per minute per source
 IP.
 

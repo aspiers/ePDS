@@ -15,7 +15,7 @@ pds-core callback, full OAuth flow).
 | `auth-service/lib/`           | ~77%     | `auto-provision.ts` at 0% (needs live PDS)                             |
 | `auth-service/middleware/`    | ~91%     | `rate-limit.ts` timer cleanup at 82%                                   |
 | `auth-service/email/`         | ~71%     | Template conditional branches partially covered                        |
-| `auth-service/routes/`        | ~32%     | Resend webhook is HTTP-tested; browser/OAuth routes remain gaps        |
+| `auth-service/routes/`        | ~35%     | Resend webhook is HTTP-tested; browser/OAuth routes remain gaps        |
 | `auth-service/better-auth.ts` | 0%       | better-auth wiring — see below                                         |
 | `auth-service/context.ts`     | 0%       | Minimal glue class                                                     |
 | `auth-service/index.ts`       | 0%       | Express app assembly + `main()`                                        |
@@ -60,9 +60,9 @@ pds-core callback, full OAuth flow).
 ### 2. `auth-service/src/routes/` (low coverage)
 
 The signed `resend-webhook.ts` receiver has HTTP-level integration coverage
-for valid signatures, rejected signatures, supported event filtering,
-structured logging, and retry correlation. The browser/OAuth route files remain the
-main gap: `login-page.ts`, `consent.ts`, `recovery.ts`, `account-login.ts`,
+for valid signatures, rejected signatures, logged and ignored event filtering,
+structured logging, and retry correlation. The browser/OAuth route files remain
+this area's main gap: `login-page.ts`, `consent.ts`, `recovery.ts`, `account-login.ts`,
 `account-settings.ts`, `choose-handle.ts`, and `complete.ts`.
 
 **Why they're hard:**

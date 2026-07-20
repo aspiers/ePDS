@@ -17,15 +17,31 @@ const logger = createLogger('auth:email-webhook')
 
 export const RESEND_WEBHOOK_PATH = '/webhooks/resend'
 
-const RESEND_EVENT_TYPES = [
+const LOGGED_RESEND_EVENT_TYPES = [
   'email.sent',
   'email.delivered',
   'email.delivery_delayed',
   'email.opened',
   'email.bounced',
   'email.failed',
+  'email.complained',
+  'email.suppressed',
+  'email.scheduled',
 ] as const
 
+const IGNORED_RESEND_EVENT_TYPES = ['email.clicked', 'email.received'] as const
+const RESEND_EVENT_TYPES = [
+  ...LOGGED_RESEND_EVENT_TYPES,
+  ...IGNORED_RESEND_EVENT_TYPES,
+] as const
+
+const WARNING_RESEND_EVENT_TYPES = [
+  'email.delivery_delayed',
+  'email.complained',
+  'email.suppressed',
+] as const
+
+type LoggedResendEventType = (typeof LOGGED_RESEND_EVENT_TYPES)[number]
 type ResendEventType = (typeof RESEND_EVENT_TYPES)[number]
 type EmailEventType =
   | 'sent'
@@ -34,15 +50,21 @@ type EmailEventType =
   | 'opened'
   | 'bounced'
   | 'failed'
+  | 'complained'
+  | 'suppressed'
+  | 'scheduled'
 type OtpCharset = 'numeric' | 'alphanumeric'
 
-const NORMALIZED_EVENT_TYPES: Record<ResendEventType, EmailEventType> = {
+const NORMALIZED_EVENT_TYPES: Record<LoggedResendEventType, EmailEventType> = {
   'email.sent': 'sent',
   'email.delivered': 'delivered',
   'email.delivery_delayed': 'delayed',
   'email.opened': 'opened',
   'email.bounced': 'bounced',
   'email.failed': 'failed',
+  'email.complained': 'complained',
+  'email.suppressed': 'suppressed',
+  'email.scheduled': 'scheduled',
 }
 
 interface ResendEvent {
@@ -190,8 +212,14 @@ function redactOtpFromSubject(
   )
 }
 
-function logResendEvent(
+function isLoggedResendEvent(
   event: ResendEvent,
+): event is ResendEvent & { type: LoggedResendEventType } {
+  return (LOGGED_RESEND_EVENT_TYPES as readonly string[]).includes(event.type)
+}
+
+function logResendEvent(
+  event: ResendEvent & { type: LoggedResendEventType },
   svixId: string,
   otpLength: number,
   otpCharset: OtpCharset,
@@ -206,7 +234,7 @@ function logResendEvent(
     subject: redactOtpFromSubject(event.data.subject, otpLength, otpCharset),
   }
   const message = 'Received email event'
-  if (event.type === 'email.delivery_delayed') {
+  if ((WARNING_RESEND_EVENT_TYPES as readonly string[]).includes(event.type)) {
     logger.warn(fields, message)
   } else {
     logger.info(fields, message)
@@ -237,6 +265,19 @@ export function createResendWebhookRouter(
       }
 
       const eventId = result.headers['svix-id']
+      if (!isLoggedResendEvent(result.event)) {
+        logger.debug(
+          {
+            provider: 'resend',
+            eventId,
+            eventType: result.event.type.slice('email.'.length),
+          },
+          'Ignored unsupported email webhook event',
+        )
+        res.status(200).json({ received: true, ignored: true })
+        return
+      }
+
       const eventFromAddress = parseSingleEmailAddress(result.event.data.from)
       if (eventFromAddress !== expectedFromAddress) {
         logger.debug(
