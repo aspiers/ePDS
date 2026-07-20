@@ -167,20 +167,20 @@ prompt_hostname() {
   set_env_var PDS_HOSTNAME "$pds_hostname" .env
   set_env_var PDS_PUBLIC_URL "$pds_public_url" .env
   set_env_var AUTH_HOSTNAME "$auth_hostname" .env
-  set_env_var EPDS_LINK_BASE_URL "${proto}://${auth_hostname}/auth/verify" .env
+  set_env_var EPDS_LINK_BASE_URL "${proto}://${auth_hostname}/auth/verify" .env # NOSONAR — HTTP is selected only for localhost development.
 
   # Set PDS_INTERNAL_URL for multi-service deployments (auth-service → pds-core).
   # Docker: http://core:3000; Railway: http://<service>.railway.internal:3000
   # Not needed for localhost (both services on same host).
   if [ "$pds_hostname" != "localhost" ] && [[ "$pds_hostname" != *.localhost ]]; then
-    set_env_var PDS_INTERNAL_URL "http://core:3000" .env
-    echo "  Set PDS_INTERNAL_URL=http://core:3000"
+    set_env_var PDS_INTERNAL_URL "http://core:3000" .env # NOSONAR — Docker's private network does not need TLS.
+    echo "  Set PDS_INTERNAL_URL=http://core:3000" # NOSONAR — Docker's private network does not need TLS.
   fi
 
   echo "  Set PDS_HOSTNAME=${pds_hostname}"
   echo "  Set PDS_PUBLIC_URL=${pds_public_url}"
   echo "  Set AUTH_HOSTNAME=${auth_hostname}"
-  echo "  Set EPDS_LINK_BASE_URL=${proto}://${auth_hostname}/auth/verify"
+  echo "  Set EPDS_LINK_BASE_URL=${proto}://${auth_hostname}/auth/verify" # NOSONAR — HTTP is selected only for localhost development.
 }
 
 # Ask for SMTP credentials. Sets discrete vars in .env (for auth-service) and
@@ -485,8 +485,8 @@ print_next_steps() {
   echo "  grep -v '^\s*#' packages/demo/.env | grep -v '^\s*$'"
   echo ""
   echo "  IMPORTANT: For Railway, change PDS_INTERNAL_URL in auth-service from"
-  echo "  the Docker value (http://core:3000) to the Railway internal URL:"
-  echo "    http://<pds-core-service>.railway.internal:3000"
+  echo "  the Docker value (http://core:3000) to the Railway internal URL:" # NOSONAR — Docker's private network does not need TLS.
+  echo "    http://<pds-core-service>.railway.internal:3000" # NOSONAR — Railway's private network does not need TLS.
   echo "  The auth service will fail to start without a correct PDS_INTERNAL_URL."
   echo ""
   echo "  IMPORTANT: EPDS_CLIENT_PRIVATE_JWK must be DIFFERENT per demo service."
