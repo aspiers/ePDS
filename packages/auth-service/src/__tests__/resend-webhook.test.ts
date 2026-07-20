@@ -123,14 +123,17 @@ describe('Resend webhook receiver', () => {
     )
   })
 
-  it('normalizes open-tracking events', async () => {
-    const result = await postWebhook(makeEvent('email.opened'))
+  it.each([
+    ['email.opened', 'opened'],
+    ['email.scheduled', 'scheduled'],
+  ])('normalizes %s events as %s', async (resendType, normalizedType) => {
+    const result = await postWebhook(makeEvent(resendType))
 
     expect(result).toEqual({ status: 200, json: { received: true } })
     expect(logInfo).toHaveBeenCalledWith(
       expect.objectContaining({
         provider: 'resend',
-        eventType: 'opened',
+        eventType: normalizedType,
         messageId: 'resend-email-123',
         email: 'person@example.com',
       }),
@@ -205,14 +208,18 @@ describe('Resend webhook receiver', () => {
     )
   })
 
-  it('logs delivery delays at warning level', async () => {
-    await postWebhook(makeEvent('email.delivery_delayed'))
+  it.each([
+    ['email.delivery_delayed', 'delayed'],
+    ['email.complained', 'complained'],
+    ['email.suppressed', 'suppressed'],
+  ])('logs %s as %s at warning level', async (resendType, normalizedType) => {
+    await postWebhook(makeEvent(resendType))
 
     expect(logWarn).toHaveBeenCalledWith(
       expect.objectContaining({
         provider: 'resend',
         eventId: 'msg_test_123',
-        eventType: 'delayed',
+        eventType: normalizedType,
         messageId: 'resend-email-123',
       }),
       'Received email event',
@@ -237,8 +244,30 @@ describe('Resend webhook receiver', () => {
     expect(logInfo).not.toHaveBeenCalled()
   })
 
-  it('rejects signed event types that are not used for email logs', async () => {
-    const result = await postWebhook(makeEvent('email.received'))
+  it.each(['email.clicked', 'email.received'])(
+    'acknowledges ignored %s events without logging their payload',
+    async (eventType) => {
+      const result = await postWebhook(makeEvent(eventType))
+
+      expect(result).toEqual({
+        status: 200,
+        json: { received: true, ignored: true },
+      })
+      expect(logInfo).not.toHaveBeenCalled()
+      expect(logWarn).not.toHaveBeenCalled()
+      expect(logDebug).toHaveBeenCalledWith(
+        {
+          provider: 'resend',
+          eventId: 'msg_test_123',
+          eventType: eventType.slice('email.'.length),
+        },
+        'Ignored unsupported email webhook event',
+      )
+    },
+  )
+
+  it('rejects unknown signed event types', async () => {
+    const result = await postWebhook(makeEvent('email.unknown'))
 
     expect(result.status).toBe(400)
     expect(result.json).toEqual({ error: 'Invalid webhook payload' })
