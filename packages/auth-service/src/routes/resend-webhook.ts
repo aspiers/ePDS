@@ -147,7 +147,7 @@ function verifyResendWebhook(
 }
 
 const NUMERIC_OTP_CANDIDATE =
-  /(^|[^0-9])((?:[0-9]{3,4}(?: [0-9]{3,4}){1,3}|[0-9]{4,12}))(?![0-9])/g
+  /(^|\D)((?:\d{3,4}(?: \d{3,4}){1,3}|\d{4,12}))(?!\d)/g
 const ALPHANUMERIC_OTP_CANDIDATE =
   /(^|[^A-Za-z0-9])((?:[A-Z0-9]{3,4}(?: [A-Z0-9]{3,4}){1,3}|[A-Z0-9]{4,12}))(?![A-Za-z0-9])/g
 
