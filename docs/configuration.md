@@ -198,24 +198,30 @@ buttons appear on the login page.
 | `POSTMARK_SERVER_TOKEN`          | Postmark server token                                                                                                                                                                                                  |
 | `EMAIL_TEMPLATE_ALLOWED_DOMAINS` | Optional comma-separated list of HTTPS hostnames from which `email_template_uri` can be fetched. If unset, any HTTPS URL is allowed. If set, templates hosted on unlisted domains are logged as a warning and ignored. |
 
-#### Optional Resend delivery event logs
+#### Optional Resend email event logs
 
 ePDS does **not** require Resend: operators can use any SMTP provider. This
 provider-specific integration is only for operators who already send through
-Resend and choose to log its delivery webhooks. Without
+Resend and choose to log its email webhooks. Without
 `RESEND_WEBHOOK_SECRET`, the webhook route is not mounted.
 
 | Variable                | Description                                                                                                                                           |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `RESEND_WEBHOOK_SECRET` | Resend users only. Optional webhook signing secret (`whsec_...`) that enables `POST /webhooks/resend` and structured Resend event logs when provided. |
 
-To opt into delivery-event logging for email sent through Resend:
+To opt into email-event logging for email sent through Resend:
 
 1. In the Resend dashboard, register `https://<AUTH_HOSTNAME>/webhooks/resend`.
-2. Subscribe it to `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, and `email.failed`.
-3. Set `RESEND_WEBHOOK_SECRET` to that endpoint's signing secret and redeploy the auth service.
-4. Send a test sign-in code through the production SMTP configuration and
-   confirm that both `email.sent` and `email.delivered` reach the receiver.
+2. Subscribe it to `email.sent`, `email.delivered`, `email.delivery_delayed`,
+   `email.opened`, `email.bounced`, and `email.failed`.
+3. To receive `email.opened`, enable Resend open tracking for the sending domain
+   and configure its tracking CNAME. Resend inserts the tracking pixel; ePDS
+   does not alter email HTML. Without tracking, the other events still work.
+4. Set `RESEND_WEBHOOK_SECRET` to that endpoint's signing secret and redeploy
+   the auth service.
+5. Send a test sign-in code through the production SMTP configuration and
+   confirm that `email.sent` and `email.delivered` reach the receiver. If open
+   tracking is enabled, open the message and confirm `email.opened` also arrives.
    Resend's documentation does not explicitly guarantee that SMTP-submitted
    email emits webhooks, so verify this before relying on the logs.
 
@@ -231,8 +237,10 @@ a provider-neutral log schema: `provider`, `eventId`, `eventType`, `occurredAt`,
 `messageId`, `email`, and `subject`. Any sign-in code in `subject` is replaced
 with `[REDACTED]` to prevent it from reaching logs while preserving the rest of
 the subject. Resend event types are normalized to `sent`, `delivered`, `delayed`,
-`bounced`, or `failed`. Normal events use `info`;
-`delayed` uses `warn`. No webhook data is persisted by ePDS. The
+`opened`, `bounced`, or `failed`. Normal events use `info`; `delayed` uses
+`warn`. An `opened` event means the tracking pixel was fetched, which can be
+caused or suppressed by mail-client privacy features and is not proof that the
+recipient read the message. No webhook data is persisted by ePDS. The
 provider-specific rate limit permits 300 webhook requests per minute per source
 IP.
 

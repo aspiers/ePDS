@@ -119,7 +119,22 @@ describe('Resend webhook receiver', () => {
         email: 'person@example.com',
         subject: '[REDACTED] — Your sign-in code',
       },
-      'Received email delivery event',
+      'Received email event',
+    )
+  })
+
+  it('normalizes open-tracking events', async () => {
+    const result = await postWebhook(makeEvent('email.opened'))
+
+    expect(result).toEqual({ status: 200, json: { received: true } })
+    expect(logInfo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'resend',
+        eventType: 'opened',
+        messageId: 'resend-email-123',
+        email: 'person@example.com',
+      }),
+      'Received email event',
     )
   })
 
@@ -200,7 +215,7 @@ describe('Resend webhook receiver', () => {
         eventType: 'delayed',
         messageId: 'resend-email-123',
       }),
-      'Received email delivery event',
+      'Received email event',
     )
   })
 
@@ -222,15 +237,15 @@ describe('Resend webhook receiver', () => {
     expect(logInfo).not.toHaveBeenCalled()
   })
 
-  it('rejects signed event types that are not used for delivery logs', async () => {
-    const result = await postWebhook(makeEvent('email.opened'))
+  it('rejects signed event types that are not used for email logs', async () => {
+    const result = await postWebhook(makeEvent('email.received'))
 
     expect(result.status).toBe(400)
     expect(result.json).toEqual({ error: 'Invalid webhook payload' })
     expect(logInfo).not.toHaveBeenCalled()
   })
 
-  it('rejects a delivery event without a recipient email', async () => {
+  it('rejects an email event without a recipient email', async () => {
     const event = makeEvent()
     const data = event.data as Record<string, unknown>
     data.to = []

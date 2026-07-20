@@ -1,12 +1,12 @@
 /**
- * Resend delivery webhook receiver.
+ * Resend email webhook receiver.
  *
  * The route consumes the untouched request body, verifies Resend's Svix
- * signature before inspecting the payload, accepts only delivery events used
- * by ePDS, and emits one structured log entry per delivery attempt. Resend may
- * retry the same source ID (logged as `eventId`) and may deliver an email's
- * events out of order, so log consumers must deduplicate and order events when
- * calculating latency.
+ * signature before inspecting the payload, accepts only email events used by
+ * ePDS, and emits one structured log entry per event. Resend may retry the same
+ * source ID (logged as `eventId`) and may deliver an email's events out of
+ * order, so log consumers must deduplicate and order events when calculating
+ * latency.
  */
 import express, { Router } from 'express'
 import addressparser from 'nodemailer/lib/addressparser/index.js'
@@ -21,27 +21,29 @@ const RESEND_EVENT_TYPES = [
   'email.sent',
   'email.delivered',
   'email.delivery_delayed',
+  'email.opened',
   'email.bounced',
   'email.failed',
 ] as const
 
 type ResendEventType = (typeof RESEND_EVENT_TYPES)[number]
-type EmailDeliveryEventType =
+type EmailEventType =
   | 'sent'
   | 'delivered'
   | 'delayed'
+  | 'opened'
   | 'bounced'
   | 'failed'
 type OtpCharset = 'numeric' | 'alphanumeric'
 
-const NORMALIZED_EVENT_TYPES: Record<ResendEventType, EmailDeliveryEventType> =
-  {
-    'email.sent': 'sent',
-    'email.delivered': 'delivered',
-    'email.delivery_delayed': 'delayed',
-    'email.bounced': 'bounced',
-    'email.failed': 'failed',
-  }
+const NORMALIZED_EVENT_TYPES: Record<ResendEventType, EmailEventType> = {
+  'email.sent': 'sent',
+  'email.delivered': 'delivered',
+  'email.delivery_delayed': 'delayed',
+  'email.opened': 'opened',
+  'email.bounced': 'bounced',
+  'email.failed': 'failed',
+}
 
 interface ResendEvent {
   type: ResendEventType
@@ -203,7 +205,7 @@ function logResendEvent(
     email: event.data.to[0],
     subject: redactOtpFromSubject(event.data.subject, otpLength, otpCharset),
   }
-  const message = 'Received email delivery event'
+  const message = 'Received email event'
   if (event.type === 'email.delivery_delayed') {
     logger.warn(fields, message)
   } else {
