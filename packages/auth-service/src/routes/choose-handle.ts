@@ -209,7 +209,7 @@ export function createChooseHandleRouter(
     }
 
     const KNOWN_ERROR_MESSAGES: Record<string, string> = {
-      handle_taken: 'That handle was just taken — please choose another.',
+      handle_taken: 'That handle is not available — please choose another.',
     }
     const rawError = req.query.error as string | undefined
     const error = rawError
@@ -380,7 +380,7 @@ export function createChooseHandleRouter(
         .send(
           renderChooseHandlePage(
             handleDomain,
-            'That handle is already taken.',
+            'That handle is not available.',
             res.locals.csrfToken,
             showRandomButton,
             branding.customCss,
@@ -626,7 +626,7 @@ export function renderChooseHandlePage(
               setStatus('\u2713 Available!', 'available');
             } else {
               isAvailable = false;
-              setStatus('\u2717 Already taken.', 'taken');
+              setStatus('\u2717 Not available.', 'taken');
             }
             updateSubmit();
           })
