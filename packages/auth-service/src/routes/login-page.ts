@@ -664,6 +664,7 @@ export function renderLoginPage(opts: {
         <div class="field">
           <label for="email">Enter your email address</label>
           <input type="email" id="email" name="email" required autofocus
+                 autocomplete="email"
                  placeholder="you@example.com"
                  value="${escapeHtml(opts.loginHint)}">
         </div>
@@ -1035,6 +1036,7 @@ export function renderLoginPage(opts: {
           emailInput.type = 'text';
           emailInput.placeholder = 'you.bsky.social';
           emailInput.name = 'handle';
+          emailInput.autocomplete = 'username';
           emailInput.value = '';
           // Browser's built-in type="email" validation would block valid
           // handles; remove it for handle mode.
@@ -1046,6 +1048,7 @@ export function renderLoginPage(opts: {
           emailInput.type = 'email';
           emailInput.placeholder = 'you@example.com';
           emailInput.name = 'email';
+          emailInput.autocomplete = 'email';
           emailInput.value = '';
           emailInput.setAttribute('required', '');
           sendOtpBtn.textContent = 'Continue';
