@@ -656,7 +656,7 @@ export function renderLoginPage(opts: {
     ${logoHtml}
     <h1 id="heading">${opts.initialStep === 'otp' ? 'Enter your code' : 'Sign in'}</h1>
 
-    <div id="error-msg" class="flash-msg" style="display:none;"></div>
+    <div id="error-msg" class="flash-msg" style="display:none;" role="status" aria-live="polite"></div>
 
     ${socialButtonsHtml}
 
@@ -848,22 +848,26 @@ export function renderLoginPage(opts: {
         // Render the notice in the existing error banner so the
         // styling / position is consistent with other errors. The
         // copy is set via textContent (no HTML), the Start over
-        // button is built imperatively.
+        // button is built imperatively. Both go in through setFlash
+        // so the notice and its button land as one mutation and
+        // announce as a single message.
         clearError();
-        showFlash(
-          'Your sign-in has timed out. The code we sent will no longer work. Start sign-in again from the app you came from.',
-          'error',
-        );
-        errorEl.appendChild(document.createElement('br'));
-        var startOverBtn = document.createElement('button');
-        startOverBtn.type = 'button';
-        startOverBtn.id = 'btn-start-over';
-        startOverBtn.className = 'flash-action';
-        startOverBtn.textContent = 'Start over';
-        startOverBtn.addEventListener('click', function() {
-          window.location.href = '/auth/abort';
+        setFlash('error', function(frag) {
+          appendMessage(
+            frag,
+            'Your sign-in has timed out. The code we sent will no longer work. Start sign-in again from the app you came from.',
+          );
+          frag.appendChild(document.createElement('br'));
+          var startOverBtn = document.createElement('button');
+          startOverBtn.type = 'button';
+          startOverBtn.id = 'btn-start-over';
+          startOverBtn.className = 'flash-action';
+          startOverBtn.textContent = 'Start over';
+          startOverBtn.addEventListener('click', function() {
+            window.location.href = '/auth/abort';
+          });
+          frag.appendChild(startOverBtn);
         });
-        errorEl.appendChild(startOverBtn);
       }
 
       /**
@@ -990,16 +994,52 @@ export function renderLoginPage(opts: {
         box.addEventListener('focus', function() { box.select(); });
       });
 
-      function showFlash(msg, kind) {
-        // Build the message DOM imperatively so showErrorWithAction
-        // can append an inline action (e.g. Resend) without ever
-        // interpolating user-influenced strings as HTML. textContent
-        // is the only sink for the msg argument, which neutralises
-        // any HTML in the better-auth error string.
-        errorEl.textContent = msg;
+      /**
+       * Swap the flash region's contents in a single mutation.
+       *
+       * Two ordering constraints make this fiddlier than it looks:
+       *
+       * 1. The region must already be visible before its text changes.
+       *    A display:none element is excluded from the accessibility
+       *    tree, so text written while hidden leaves the live region
+       *    with no "before" state to diff against and assistive tech
+       *    may never announce it.
+       * 2. The new content must arrive as one mutation. Building it
+       *    off-DOM and appending a fragment means an error plus its
+       *    inline action announce together rather than twice.
+       *
+       * Content is always built imperatively with textContent as the
+       * only sink for caller-supplied strings, so a reflected
+       * better-auth error can never be interpolated as HTML.
+       */
+      function setFlash(kind, buildContent) {
         errorEl.classList.remove('error', 'success');
         errorEl.classList.add(kind);
         errorEl.style.display = 'block';
+
+        var frag = document.createDocumentFragment();
+        buildContent(frag);
+
+        // Replace the children wholesale rather than assigning
+        // textContent in place. Re-submitting a bad OTP yields the
+        // identical string, which is not a DOM mutation and so would
+        // announce nothing — leaving the screen-reader user unsure the
+        // retry was even processed. Swapping nodes is always a
+        // mutation, so every failure announces.
+        errorEl.replaceChildren(frag);
+      }
+
+      /** Append msg to frag as a text-only node. */
+      function appendMessage(frag, msg) {
+        var msgNode = document.createElement('span');
+        msgNode.textContent = msg;
+        frag.appendChild(msgNode);
+      }
+
+      function showFlash(msg, kind) {
+        setFlash(kind, function(frag) {
+          appendMessage(frag, msg);
+        });
       }
 
       function showError(msg) { showFlash(msg, 'error'); }
@@ -1014,20 +1054,29 @@ export function renderLoginPage(opts: {
        * absent, behaves like showError.
        */
       function showErrorWithAction(msg, actionLabel, onClick) {
-        showFlash(msg, 'error');
-        if (!actionLabel || typeof onClick !== 'function') return;
-        errorEl.appendChild(document.createTextNode(' '));
-        var btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'flash-action';
-        btn.textContent = actionLabel;
-        btn.addEventListener('click', onClick);
-        errorEl.appendChild(btn);
+        if (!actionLabel || typeof onClick !== 'function') {
+          showError(msg);
+          return;
+        }
+        setFlash('error', function(frag) {
+          appendMessage(frag, msg);
+          frag.appendChild(document.createTextNode(' '));
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'flash-action';
+          btn.textContent = actionLabel;
+          btn.addEventListener('click', onClick);
+          frag.appendChild(btn);
+        });
       }
 
       function clearError() {
+        // Empty the region before hiding it. Clearing after the
+        // display:none would mutate a region that is already out of
+        // the accessibility tree, which some assistive tech reports
+        // as a stale announcement.
+        errorEl.replaceChildren();
         errorEl.style.display = 'none';
-        errorEl.textContent = '';
         errorEl.classList.remove('error', 'success');
       }
 

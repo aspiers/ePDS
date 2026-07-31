@@ -497,8 +497,12 @@ export function renderChooseHandlePage(
   customFaviconUrl?: string | null,
   customFaviconUrlDark?: string | null,
 ): string {
+  // role=alert only on the populated branch: it is static at render
+  // time, so the default assertive announcement is what we want. The
+  // empty placeholder is never written to by this page's script, so
+  // it needs no live-region semantics.
   const errorHtml = error
-    ? `<div class="error" id="error-msg">${escapeHtml(error)}</div>`
+    ? `<div class="error" id="error-msg" role="alert">${escapeHtml(error)}</div>`
     : `<div class="error" id="error-msg" style="display:none;"></div>`
 
   return `<!DOCTYPE html>
@@ -567,10 +571,15 @@ export function renderChooseHandlePage(
               spellcheck="false"
               minlength="5"
               maxlength="20"
+              aria-describedby="handle-status"
             >
             <span class="handle-suffix">.${escapeHtml(handleDomain)}</span>
           </div>
-          <div class="status" id="handle-status"></div>
+          <!-- Availability feedback is rewritten on every debounced
+               keystroke, so it must announce politely rather than
+               interrupting the user mid-type. Without this, screen
+               reader users get no availability feedback at all. -->
+          <div class="status" id="handle-status" role="status" aria-live="polite"></div>
         </div>
         ${showRandomButton ? `<button type="button" id="random-btn" class="btn-secondary">Generate random handle</button>` : ''}
         <button type="submit" id="submit-btn" class="btn-primary">Create</button>
