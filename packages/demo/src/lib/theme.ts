@@ -141,7 +141,7 @@ function buildInjectedCss(
     `.handle-row { border-color: ${page.inputBorder}; }`,
     `.handle-suffix { color: ${page.textHint}; background: ${page.inputBg}; border-color: ${page.inputBorder}; }`,
     '.status.available { color: #4ade80; }',
-    `.status.taken { color: ${page.errorText}; }`,
+    `.status.unavailable { color: ${page.errorText}; }`,
     `.status.checking { color: ${page.textHint}; }`,
     `.permissions { background: ${page.inputBg}; }`,
     '.permissions li::before { color: #4ade80; }',

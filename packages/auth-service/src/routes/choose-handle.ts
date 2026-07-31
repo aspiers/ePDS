@@ -209,7 +209,7 @@ export function createChooseHandleRouter(
     }
 
     const KNOWN_ERROR_MESSAGES: Record<string, string> = {
-      handle_taken: 'That handle was just taken — please choose another.',
+      handle_taken: 'That handle is not available — please choose another.',
     }
     const rawError = req.query.error as string | undefined
     const error = rawError
@@ -380,7 +380,7 @@ export function createChooseHandleRouter(
         .send(
           renderChooseHandlePage(
             handleDomain,
-            'That handle is already taken.',
+            'That handle is not available.',
             res.locals.csrfToken,
             showRandomButton,
             branding.customCss,
@@ -534,7 +534,7 @@ export function renderChooseHandlePage(
     }
     .status { min-height: 20px; font-size: 14px; margin-top: 6px; }
     .status.available { color: #28a745; }
-    .status.taken { color: #dc3545; }
+    .status.unavailable { color: #dc3545; }
     .status.checking { color: #888; }
     .status.format-error { color: #dc3545; }
     .error { color: #dc3545; background: #fdf0f0; padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; }
@@ -598,8 +598,8 @@ export function renderChooseHandlePage(
       var debounceTimer = null;
       var currentAbort = null;
 
-      // isAvailable: null = unknown, true = confirmed available, false = confirmed taken.
-      // submitBtn is disabled only when handle is confirmed taken or unavailable.
+      // isAvailable: null = unknown, true = confirmed available, false = confirmed unavailable.
+      // submitBtn is disabled only when the handle is confirmed unavailable.
       var isAvailable = null;
 
       function setStatus(text, cls) {
@@ -637,14 +637,14 @@ export function renderChooseHandlePage(
               setStatus('\u2713 Available!', 'available');
             } else {
               isAvailable = false;
-              setStatus('\u2717 Already taken.', 'taken');
+              setStatus('\u2717 Not available.', 'unavailable');
             }
             updateSubmit();
           })
           .catch(function(err) {
             if (err.name === 'AbortError') return; // silently ignore cancelled requests
             currentAbort = null;
-            // Network/timeout error: unknown state — don't block if handle isn't confirmed taken
+            // Network/timeout error: unknown state — don't block if the handle isn't confirmed unavailable
             isAvailable = null;
             setStatus('Could not check availability.', 'format-error');
             updateSubmit();
@@ -725,7 +725,7 @@ export function renderChooseHandlePage(
                 setStatus('Could not check availability.', 'format-error');
                 randomBtn.disabled = false;
               } else {
-                // Genuinely taken — retry with a new random value
+                // Genuinely unavailable — retry with a new random value
                 tryRandomHandle(attemptsLeft - 1);
               }
             })
