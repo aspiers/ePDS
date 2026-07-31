@@ -20,6 +20,11 @@ import type { AuthServiceContext } from '../context.js'
 import { buildOtpInputProps } from '../otp-input.js'
 import type { BetterAuthInstance } from '../better-auth.js'
 import { POWERED_BY_CSS, POWERED_BY_HTML } from '../lib/page-helpers.js'
+import {
+  EMAIL_TYPO_GUARD_CSS,
+  renderEmailTypoGuardMarkup,
+  renderEmailTypoGuardScript,
+} from '../lib/email-typo-guard.js'
 
 const logger = createLogger('auth:account-login')
 
@@ -152,7 +157,7 @@ function renderLoginForm(opts: { csrfToken: string; error?: string }): string {
       <h1>Account Settings</h1>
       <p class="subtitle">Sign in to manage your account</p>
       ${opts.error ? '<p class="error" role="alert">' + escapeHtml(opts.error) + '</p>' : ''}
-      <form method="POST" action="/account/send-otp">
+      <form id="form-account-send-otp" method="POST" action="/account/send-otp">
         <input type="hidden" name="csrf" value="${escapeHtml(opts.csrfToken)}">
         <div class="field">
           <label for="email">Email address</label>
@@ -160,11 +165,13 @@ function renderLoginForm(opts: { csrfToken: string; error?: string }): string {
                  autocomplete="email"
                  placeholder="you@example.com">
         </div>
+        ${renderEmailTypoGuardMarkup()}
         <button type="submit" class="btn-primary">Continue with email</button>
       </form>
     </div>
     ${POWERED_BY_HTML}
   </div>
+  ${renderEmailTypoGuardScript('form-account-send-otp', 'email')}
 </body>
 </html>`
 }
@@ -237,6 +244,7 @@ const CSS = `
   .field label { display: block; font-size: 14px; font-weight: 500; color: #333; margin-bottom: 6px; }
   .field input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; outline: none; }
   .field input:focus { border-color: #0f1828; }
+  ${EMAIL_TYPO_GUARD_CSS}
   .otp-input { font-size: 28px !important; text-align: center; font-family: 'SF Mono', Menlo, Consolas, monospace !important; padding: 14px !important; }
   .btn-primary { width: 100%; padding: 12px; background: #0f1828; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; }
   .btn-primary:hover { background: #1a2a40; }
