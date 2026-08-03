@@ -54,6 +54,11 @@ import {
 } from '../lib/page-helpers.js'
 import { renderError } from '../lib/render-error.js'
 import {
+  EMAIL_TYPO_GUARD_CSS,
+  renderEmailTypoGuardMarkup,
+  renderEmailTypoGuardScript,
+} from '../lib/email-typo-guard.js'
+import {
   appendOrphanDeviceCookieClearHeaders,
   buildPdsAuthorizeRedirect,
   deriveSharedCookieDomain,
@@ -609,6 +614,7 @@ export function renderLoginPage(opts: {
     .field label { display: block; font-size: 16px; line-height: 24px; font-weight: 600; color: #1A130F; margin-bottom: 8px; }
     .field input { width: 100%; padding: 14px 20px; border: 1px solid var(--input-border); border-radius: 8px; font-size: 16px; outline: none; background: var(--input-bg); transition: border-color 0.15s; }
     .field input:focus { border-color: var(--focus-border); }
+    ${EMAIL_TYPO_GUARD_CSS}
     .otp-boxes { display: flex; gap: 10px; justify-content: center; margin-bottom: 24px; }
     .otp-box { width: 48px; height: 56px; padding: 0; text-align: center; font-size: 24px; font-family: 'SF Mono', Menlo, Consolas, monospace; border: 1px solid var(--input-border); border-radius: 8px; background: var(--input-bg); color: #1A130F; outline: none; transition: border-color 0.15s; }
     .otp-box::placeholder { color: #d4d4d4; }
@@ -670,6 +676,7 @@ export function renderLoginPage(opts: {
                  placeholder="you@example.com"
                  value="${escapeHtml(opts.loginHint)}">
         </div>
+        ${renderEmailTypoGuardMarkup()}
         <button type="submit" class="btn-primary">Continue</button>
       </form>
       ${handleLoginButtonHtml}
@@ -716,6 +723,7 @@ export function renderLoginPage(opts: {
     </a>
   </div>
 
+  ${renderEmailTypoGuardScript('form-send-otp', 'email')}
   <script>
     (function() {
       var authBasePath = ${JSON.stringify(opts.authBasePath)};
