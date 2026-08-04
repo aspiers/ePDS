@@ -65,6 +65,7 @@ import { createUpstreamFaviconMiddleware } from './upstream-favicon.js'
 import { createAuthUiGuard, parsePromptTokens } from './auth-ui-guard.js'
 import { loadDeviceAccountEmails } from './lib/device-accounts.js'
 import { handleCallbackError } from './lib/epds-callback-error.js'
+import { markEmailConfirmed } from './lib/email-confirmed.js'
 import { installTestHooks } from './lib/test-hooks.js'
 
 const logger = createLogger('pds-core')
@@ -442,6 +443,22 @@ async function main() {
 
       // Step 4: Bind account to device session (for future SSO).
       await provider.accountManager.upsertDeviceAccount(deviceId, account.sub)
+
+      // Step 4b: Record that the email is confirmed. Reaching this
+      // point means auth-service verified a one-time code sent to
+      // `email`, but upstream only populates `emailConfirmedAt` from
+      // confirmEmail()'s token flow, so without this the address stays
+      // marked unverified forever. Only new accounts need it —
+      // existing ones were stamped when they were created (or by the
+      // one-off backfill script for accounts predating this).
+      // Best-effort: never fails the sign-in.
+      if (!existingAccount) {
+        await markEmailConfirmed({
+          db: pds.ctx.accountManager.db,
+          did: account.sub,
+          logger,
+        })
+      }
 
       // Step 5: Determine whether to skip consent on sign-up.
       // Consent is skipped only when ALL of these hold:
